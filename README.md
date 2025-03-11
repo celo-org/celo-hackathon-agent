@@ -54,14 +54,27 @@ python create_sample_data.py
 
 ### 🔍 Run the Analyzer
 
+#### Standard Version
 ```bash
 python run.py --excel sample_projects.xlsx --output reports --verbose
+```
+
+#### Advanced Agent-Based Version with Parallel Execution
+```bash
+python run_agents.py --excel sample_projects.xlsx --output reports --verbose --workers 4
+```
+
+#### Analyze a Single Repository
+```bash
+python run_agents.py --single https://github.com/username/repository --output reports
 ```
 
 #### Optional Arguments:
 - `--config`: Path to custom configuration file (default: `config.json`)
 - `--output`: Directory to save reports (default: `reports`)
 - `--verbose`: Display detailed progress information
+- `--workers`: Number of parallel analysis workers (default: CPU count)
+- `--single`: URL of a single repository to analyze
 
 ### ⚙️ Configuration
 
@@ -75,14 +88,76 @@ Customize the analysis by editing `config.json`:
 ```
 celo-hackathon-agent/
 ├── src/
+│   ├── agents/         # AI agents for analysis
+│   │   ├── repo_agent.py           # Repository exploration agent
+│   │   ├── code_quality_agent.py   # Code quality analysis agent
+│   │   ├── celo_agent.py           # Celo integration detection agent
+│   │   ├── reporting_agent.py      # Report generation agent
+│   │   ├── orchestrator.py         # Parallel execution orchestration
+│   │   └── coordinator.py          # Agent coordination system
 │   ├── models/         # Data types and configuration
+│   │   ├── types.py                # TypedDict definitions
+│   │   └── config.py               # Configuration handling
 │   ├── analyzer/       # Analysis components
+│   │   ├── repo_analyzer.py        # Main analyzer class
+│   │   ├── github_repo.py          # GitHub repository access
+│   │   ├── code_quality.py         # Code quality analysis
+│   │   └── celo_detector.py        # Celo integration detection
+│   ├── tools/          # LangChain tools
+│   │   ├── repo/                   # Repository analysis tools
+│   │   ├── code_quality/           # Code quality tools
+│   │   ├── celo/                   # Celo detection tools
+│   │   └── reporting/              # Report generation tools
 │   ├── utils/          # Utility functions
+│   │   ├── spinner.py              # Progress indicator
+│   │   └── timeout.py              # Timeout handling
 │   ├── reporting/      # Report generation
+│   │   └── report_generator.py     # Markdown report creation
 │   └── main.py         # Main application logic
-├── run.py              # Entry point script
+├── run.py              # Standard entry point script
+├── run_agents.py       # Advanced agent-based entry point with parallel execution
 ├── config.json         # Configuration
 └── requirements.txt    # Dependencies
+```
+
+## 🤖 AI Agent Architecture
+
+The advanced version of this tool uses a specialized LangChain agent-based architecture:
+
+### Agent Specialization
+
+1. **Repository Agent** - Analyzes GitHub repositories to extract:
+   - Repository metadata (stars, forks, etc.)
+   - Directory structure
+   - Representative code samples
+
+2. **Code Quality Agent** - Evaluates code quality focusing on:
+   - Readability and documentation
+   - Coding standards and best practices
+   - Algorithm complexity and efficiency
+   - Testing and coverage
+
+3. **Celo Integration Agent** - Detects Celo blockchain integration by:
+   - Scanning for Celo-specific keywords
+   - Analyzing smart contract integration
+   - Evaluating overall Celo usage depth
+
+4. **Reporting Agent** - Generates comprehensive reports with:
+   - Project overviews and summaries
+   - Detailed code quality assessments
+   - Evidence of Celo integration
+
+### Parallel Processing
+
+The orchestration system manages the analysis workflow with:
+- Parallel repository analysis
+- Thread-safe progress reporting
+- Automatic error recovery
+- Optimized resource utilization
+
+Run with multiple workers to analyze repositories simultaneously:
+```bash
+python run_agents.py --workers 4 --excel sample_projects.xlsx
 ```
 
 ## 📝 Output

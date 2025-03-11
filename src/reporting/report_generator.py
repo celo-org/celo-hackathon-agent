@@ -51,24 +51,35 @@ def generate_summary_report(results: List[Dict[str, Any]], output_path: str):
         f.write("|---------|-------|------------------|------------|\n")
 
         for result in results:
-            project_name = result["project_name"]
+            # Get project name with fallback
+            project_name = result.get("project_name", "Unknown Project")
             
-            # Handle multiple GitHub URLs
+            # Handle GitHub URLs with fallbacks for missing fields
+            github_url_display = "Not available"
+            
+            # Try to get from github_urls list first
             if "github_urls" in result and result["github_urls"]:
-                # For multiple URLs, show the first one with a link and note the count
                 github_urls = result["github_urls"]
                 if len(github_urls) > 1:
                     github_url_display = f"[{github_urls[0]}]({github_urls[0]}) +{len(github_urls)-1} more"
                 else:
                     github_url_display = f"[{github_urls[0]}]({github_urls[0]})"
-            else:
-                # Fallback to the original field if github_urls isn't available
+            # Fallback to project_github_url if available
+            elif "project_github_url" in result and result["project_github_url"]:
                 github_url = result["project_github_url"]
-                github_url_display = f"[{github_url}]({github_url})"
+                # Check if it's a string (might be a list or other structure)
+                if isinstance(github_url, str):
+                    github_url_display = f"[{github_url}]({github_url})"
 
-            # Get code quality score
+            # Get code quality score with fallbacks
             score_display = "0.00"
-            if "analysis" in result and "code_quality" in result["analysis"]:
+            
+            # Check if code_quality_score is directly in the result (for test data)
+            if "code_quality_score" in result and isinstance(result["code_quality_score"], (int, float)):
+                score = result["code_quality_score"]
+                score_display = f"{score:.2f}"
+            # Otherwise try to find it in the analysis structure
+            elif "analysis" in result and "code_quality" in result["analysis"]:
                 code_quality = result["analysis"]["code_quality"]
                 if isinstance(code_quality, dict) and "overall_score" in code_quality:
                     score = code_quality["overall_score"]
@@ -79,9 +90,15 @@ def generate_summary_report(results: List[Dict[str, Any]], output_path: str):
                     score = code_quality
                     score_display = f"{score:.2f}"
 
-            # Get Celo integration status
+            # Get Celo integration status with fallbacks
             celo_status = "❌"
-            if "analysis" in result and "celo_integration" in result["analysis"]:
+            
+            # Check if celo_integration_score is directly in the result (for test data)
+            if "celo_integration_score" in result and isinstance(result["celo_integration_score"], (int, float)):
+                celo_score = result["celo_integration_score"]
+                celo_status = "✅" if celo_score > 50 else "❌"
+            # Otherwise try to find it in the analysis structure
+            elif "analysis" in result and "celo_integration" in result["analysis"]:
                 celo_integration = result["analysis"]["celo_integration"]
                 if isinstance(celo_integration, dict) and "integrated" in celo_integration:
                     celo_integrated = celo_integration["integrated"]
@@ -113,19 +130,27 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
         output_path: Path to write the project report
     """
     with open(output_path, "w") as f:
-        f.write(f"# Project Analysis: {result['project_name']}\n\n")
+        # Get project name with fallback for missing field
+        project_name = result.get('project_name', 'Unknown Project')
+        f.write(f"# Project Analysis: {project_name}\n\n")
 
         # Project Overview
         f.write("## Project Overview\n\n")
-        f.write(f"**Project Name:** {result['project_name']}\n\n")
-        f.write(f"**Project Description:** {result['project_description']}\n\n")
+        f.write(f"**Project Name:** {project_name}\n\n")
         
-        # Handle None/NaN project_url
-        project_url = result['project_url']
-        if project_url is None or isinstance(project_url, float) and pd.isna(project_url):
-            f.write(f"**Project URL:** Not available\n\n")
+        # Project description with fallback for missing field
+        project_description = result.get('project_description', 'No description available')
+        f.write(f"**Project Description:** {project_description}\n\n")
+        
+        # Handle None/NaN project_url or missing field
+        if 'project_url' in result:
+            project_url = result['project_url']
+            if project_url is None or isinstance(project_url, float) and pd.isna(project_url):
+                f.write(f"**Project URL:** Not available\n\n")
+            else:
+                f.write(f"**Project URL:** [{project_url}]({project_url})\n\n")
         else:
-            f.write(f"**Project URL:** [{project_url}]({project_url})\n\n")
+            f.write(f"**Project URL:** Not available\n\n")
         
         # Add GitHub profiles of project owners/developers
         if "project_owner_github_url" in result and result["project_owner_github_url"]:
@@ -150,9 +175,13 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                 for i, url in enumerate(github_urls):
                     f.write(f"{i+1}. [{url}]({url})\n")
                 f.write("\n")
-        else:
+        elif "project_github_url" in result:
             # Fallback to original format
-            f.write(f"**GitHub URL:** [{result['project_github_url']}]({result['project_github_url']})\n\n")
+            github_url = result['project_github_url']
+            f.write(f"**GitHub URL:** [{github_url}]({github_url})\n\n")
+        else:
+            # No GitHub URL available
+            f.write(f"**GitHub URL:** Not available\n\n")
 
         # Repository details - handle multiple repositories
         if "analysis" in result and "repo_details" in result["analysis"]:
