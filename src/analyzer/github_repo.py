@@ -1,17 +1,19 @@
 """
-GitHub repository access utilities.
+GitHub repository access utilities using gitingest.
 """
 
-import base64
+import time
+import re
 from typing import Dict, List, Tuple, Any, Optional
 
+from gitingest import ingest
 from src.models.types import RepoDetails
 from src.models.config import Config
 from src.utils.timeout import GitHubAccessError, with_timeout
 
 
 class GitHubRepository:
-    """Class for interacting with GitHub repositories."""
+    """Class for interacting with GitHub repositories using gitingest."""
     
     def __init__(self, config: Config):
         """
@@ -21,9 +23,12 @@ class GitHubRepository:
             config: Configuration object
         """
         self.config = config
-        self.repo = None
+        self.repo_data = None
         self.repo_owner = None
         self.repo_name = None
+        self.summary = None
+        self.tree = None 
+        self.content = None
     
     def parse_github_url(self, repo_url: str) -> Tuple[str, str]:
         """
@@ -48,44 +53,9 @@ class GitHubRepository:
         
         return repo_owner, repo_name
     
-    def connect_to_github_api(self, repo_owner: str, repo_name: str) -> Any:
-        """
-        Connect to GitHub API and get repository object.
-        
-        Args:
-            repo_owner: Owner of the repository
-            repo_name: Name of the repository
-            
-        Returns:
-            GitHub repository object or None if connection fails
-        """
-        if not self.config.github_token:
-            print(f"No GitHub token provided. Using limited repository information for {repo_owner}/{repo_name}")
-            return None
-        
-        # If we have a token, use PyGithub for direct access
-        try:
-            from github import Github
-            
-            # Initialize GitHub client
-            g = Github(self.config.github_token)
-            
-            # Get repository
-            repo = g.get_repo(f"{repo_owner}/{repo_name}")
-            
-            # Simple check if repository exists and is accessible
-            _ = repo.name
-            
-            return repo
-            
-        except Exception as e:
-            error_msg = f"Error accessing repository {repo_owner}/{repo_name}: {str(e)}"
-            print(error_msg)
-            raise GitHubAccessError(error_msg)
-    
     def setup_repository(self, repo_url: str) -> Tuple[str, str]:
         """
-        Set up GitHub connection for a repository.
+        Set up repository connection using gitingest.
         
         Args:
             repo_url: URL of the GitHub repository
@@ -97,13 +67,24 @@ class GitHubRepository:
         repo_owner, repo_name = self.parse_github_url(repo_url)
         
         try:
-            # Connect to GitHub API and get repository object
-            self.repo = self.connect_to_github_api(repo_owner, repo_name)
-        except GitHubAccessError:
-            # If we can't access the repository, set repo to None
-            self.repo = None
+            # Use gitingest to get repository data
+            if progress_callback := getattr(self, 'progress_callback', None):
+                progress_callback(f"Using gitingest to analyze repository {repo_owner}/{repo_name}")
+            
+            # Call gitingest to get repository data
+            self.summary, self.tree, self.content = ingest(repo_url)
+            self.repo_data = {
+                "summary": self.summary,
+                "tree": self.tree,
+                "content": self.content
+            }
+            
+        except Exception as e:
+            error_msg = f"Error accessing repository {repo_owner}/{repo_name}: {str(e)}"
+            print(error_msg)
+            self.repo_data = None
         
-        # Store repository info regardless of API success
+        # Store repository info
         self.repo_owner = repo_owner
         self.repo_name = repo_name
         
@@ -135,13 +116,13 @@ class GitHubRepository:
     @with_timeout(30)
     def get_repository_details(self) -> RepoDetails:
         """
-        Get repository details using GitHub API.
+        Get repository details using the gitingest summary data.
         
         Returns:
             RepoDetails with repository information
         """
-        # If we don't have the repo object, return fallback info
-        if self.repo is None:
+        # If we don't have the repo data, return fallback info
+        if not self.repo_data or not self.summary:
             return self.create_fallback_repo_details(
                 self.repo_owner, 
                 self.repo_name, 
@@ -149,16 +130,32 @@ class GitHubRepository:
             )
         
         try:
-            # Get repository details directly
+            # Extract repository information from gitingest summary
+            # Parse languages from summary
+            language_match = re.search(r"Most used language: ([A-Za-z\+\#]+)", self.summary)
+            main_language = language_match.group(1) if language_match else ""
+            
+            # Get file counts
+            file_count_match = re.search(r"Files: (\d+)", self.summary)
+            file_count = int(file_count_match.group(1)) if file_count_match else 0
+            
+            # Try to extract more information if available
+            stars_match = re.search(r"Stars: (\d+)", self.summary)
+            stars = int(stars_match.group(1)) if stars_match else 0
+            
+            forks_match = re.search(r"Forks: (\d+)", self.summary)
+            forks = int(forks_match.group(1)) if forks_match else 0
+            
+            # Create repository details object
             repo_info = {
-                "name": self.repo.name,
-                "description": self.repo.description or "",
-                "url": self.repo.html_url,
-                "stars": self.repo.stargazers_count,
-                "forks": self.repo.forks_count,
-                "open_issues": self.repo.open_issues_count,
-                "last_update": self.repo.updated_at.isoformat() if self.repo.updated_at else "",
-                "language": self.repo.language or ""
+                "name": self.repo_name,
+                "description": self.summary.split("\n")[0] if self.summary else f"Repository for {self.repo_owner}/{self.repo_name}",
+                "url": f"https://github.com/{self.repo_owner}/{self.repo_name}",
+                "stars": stars,
+                "forks": forks,
+                "open_issues": 0,  # Not available from gitingest
+                "last_update": "",  # Not available from gitingest
+                "language": main_language
             }
             
             return repo_info
@@ -170,7 +167,7 @@ class GitHubRepository:
     
     def collect_code_samples(self, progress_callback=None) -> Tuple[Dict[str, int], List[str]]:
         """
-        Collect code samples and file metrics from repository.
+        Collect code samples and file metrics from repository using gitingest.
         
         Args:
             progress_callback: Optional callback for progress updates
@@ -178,108 +175,164 @@ class GitHubRepository:
         Returns:
             Tuple of file metrics and code samples
         """
-        # Get repository contents
-        contents = self.repo.get_contents("")
+        # Store progress callback for future use
+        self.progress_callback = progress_callback
         
         # Initialize counters
         file_count = 0
         test_file_count = 0
         doc_file_count = 0
-        
-        # Process files recursively
-        files_to_process = list(contents)
-        processed_paths = set()
+        code_files_count = 0
         
         # Code samples for analysis
         code_samples = []
-        code_file_paths = []
         
-        # Maximum files to process to avoid excessive API calls
-        max_files_to_process = 100
-        files_processed = 0
-        last_update_time = 0
-        update_interval = 0.5  # Update progress every 0.5 seconds
+        if not self.repo_data or not self.content:
+            if progress_callback:
+                progress_callback("No repository data available. Unable to collect code samples.")
+            return {
+                "file_count": 0,
+                "test_file_count": 0,
+                "doc_file_count": 0,
+                "code_files_analyzed": 0
+            }, []
         
-        import time
+        if progress_callback:
+            progress_callback("Processing repository data from gitingest...")
+        
         start_time = time.time()
         
-        # Process repository files
-        while files_to_process and files_processed < max_files_to_process:
-            content = files_to_process.pop(0)
-            if content.path in processed_paths:
-                continue
-            
-            processed_paths.add(content.path)
-            files_processed += 1
-            
-            # Update progress periodically
-            current_time = time.time()
-            if progress_callback and (current_time - last_update_time) > update_interval:
-                last_update_time = current_time
-                progress_callback(f"Collecting code samples - processed {files_processed} files, found {len(code_samples)} code samples")
-            
-            if content.type == "dir":
-                try:
-                    # Add directory contents to processing queue
-                    dir_contents = self.repo.get_contents(content.path)
-                    if isinstance(dir_contents, list):
-                        files_to_process.extend(dir_contents)
-                    else:
-                        files_to_process.append(dir_contents)
-                except Exception:
-                    # Skip directories we can't access
-                    continue
+        # Process the content from gitingest to extract code samples
+        content_sections = self.content.split("```")
+        
+        # If we have an odd number of sections, we have code blocks
+        # The pattern is: text, code, text, code, ...
+        if len(content_sections) > 1:
+            # Extract file information and content from every other section (1, 3, 5, ...)
+            for i in range(1, min(21, len(content_sections)), 2):  # Limit to 10 code sections (up to 21 sections)
+                if i < len(content_sections):
+                    section = content_sections[i]
+                    lines = section.strip().split("\n")
                     
-            elif content.type == "file":
-                file_count += 1
-                file_path = content.path
+                    # First line might be the file type/name
+                    if lines and ":" in lines[0]:
+                        file_path = lines[0].split(":", 1)[1].strip()
+                        file_content = "\n".join(lines[1:])
+                    else:
+                        # If no clear file path, use a generic name with index
+                        file_path = f"file_{i//2}.txt"
+                        file_content = "\n".join(lines)
+                    
+                    # Update counts based on file type
+                    file_count += 1
+                    
+                    if "test" in file_path.lower() or "spec" in file_path.lower():
+                        test_file_count += 1
+                        
+                    if file_path.lower().endswith((".md", ".rst", ".txt", ".doc", ".docx")):
+                        doc_file_count += 1
+                    
+                    # Detect code files by common extensions
+                    code_extensions = (".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".sol", 
+                                     ".go", ".rb", ".php", ".c", ".cpp", ".cs")
+                    if any(file_path.lower().endswith(ext) for ext in code_extensions):
+                        code_files_count += 1
+                        
+                        # Limit sample size
+                        sample = file_content[:1000] + "..." if len(file_content) > 1000 else file_content
+                        code_samples.append(f"File: {file_path}\n\n{sample}\n\n")
+                        
+                        if progress_callback and len(code_samples) % 3 == 0:
+                            progress_callback(f"Collected {len(code_samples)} code samples...")
+        else:
+            # If no code blocks found, try to parse the content differently
+            # Look for file sections in the raw content
+            if progress_callback:
+                progress_callback("No code blocks found. Parsing content for file sections...")
+            
+            file_sections = re.findall(r'([-\w./]+\.\w+)[\s\n]+(.+?)(?=[-\w./]+\.\w+|\Z)', self.content, re.DOTALL)
+            
+            for file_path, file_content in file_sections[:10]:  # Limit to 10 samples
+                file_path = file_path.strip()
+                file_content = file_content.strip()
                 
-                # Classify file types
+                # Update counts
+                file_count += 1
+                
                 if "test" in file_path.lower() or "spec" in file_path.lower():
                     test_file_count += 1
                     
                 if file_path.lower().endswith((".md", ".rst", ".txt", ".doc", ".docx")):
                     doc_file_count += 1
-                    
-                # Collect code file samples
+                
+                # Detect code files
                 code_extensions = (".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".sol", 
-                                  ".go", ".rb", ".php", ".c", ".cpp", ".cs")
-                if file_path.lower().endswith(code_extensions):
-                    try:
-                        # Add to code file paths
-                        code_file_paths.append(file_path)
+                                 ".go", ".rb", ".php", ".c", ".cpp", ".cs")
+                if any(file_path.lower().endswith(ext) for ext in code_extensions):
+                    code_files_count += 1
+                    
+                    # Limit sample size
+                    sample = file_content[:1000] + "..." if len(file_content) > 1000 else file_content
+                    code_samples.append(f"File: {file_path}\n\n{sample}\n\n")
+                    
+                    if progress_callback and len(code_samples) % 3 == 0:
+                        progress_callback(f"Collected {len(code_samples)} code samples...")
+        
+        # If we still don't have enough code samples, extract them from the tree structure
+        if len(code_samples) < 5 and self.tree:
+            if progress_callback:
+                progress_callback("Finding additional code samples from directory tree...")
+            
+            # Extract file paths from the tree
+            file_paths = []
+            for line in self.tree.split("\n"):
+                if line.strip() and not line.strip().endswith("/"):
+                    file_path = line.strip()
+                    file_paths.append(file_path)
+                    
+                    # Update file counter
+                    file_count += 1
+                    
+                    # Classify file type
+                    if "test" in file_path.lower() or "spec" in file_path.lower():
+                        test_file_count += 1
                         
-                        # Only sample up to 10 code files
-                        if len(code_samples) < 10:
-                            file_content = self.repo.get_contents(file_path).decoded_content.decode('utf-8')
-                            # Limit sample size
-                            sample = file_content[:1000] + "..." if len(file_content) > 1000 else file_content
-                            code_samples.append(f"File: {file_path}\n\n{sample}\n\n")
-                    except Exception:
-                        # Skip files that can't be decoded
-                        continue
+                    if file_path.lower().endswith((".md", ".rst", ".txt", ".doc", ".docx")):
+                        doc_file_count += 1
+                    
+                    # Check for code files
+                    code_extensions = (".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".sol", 
+                                     ".go", ".rb", ".php", ".c", ".cpp", ".cs")
+                    if any(file_path.lower().endswith(ext) for ext in code_extensions):
+                        code_files_count += 1
         
         # Compile file metrics
         file_metrics = {
             "file_count": file_count,
             "test_file_count": test_file_count,
             "doc_file_count": doc_file_count,
-            "code_files_analyzed": len(code_file_paths)
+            "code_files_analyzed": code_files_count
         }
+        
+        # Add some synthetic samples if we couldn't find any
+        if not code_samples and self.summary:
+            code_samples.append(f"Repository Summary:\n\n{self.summary}\n\n")
+            if self.tree:
+                code_samples.append(f"Repository Structure:\n\n{self.tree[:1000]}\n\n")
         
         # Final progress update
         if progress_callback:
             elapsed = time.time() - start_time
-            progress_callback(f"Completed collecting {len(code_samples)} code samples from {file_count} files in {elapsed:.1f}s")
+            progress_callback(f"Completed collecting {len(code_samples)} code samples in {elapsed:.1f}s")
         
         return file_metrics, code_samples
         
     def search_files_for_keywords(self, file_paths: List[str], keywords: List[str]) -> List[Dict[str, str]]:
         """
-        Search specific files for keywords.
+        Search repository content for keywords.
         
         Args:
-            file_paths: List of file paths to search
+            file_paths: List of file paths to search (not used, searching all content)
             keywords: List of keywords to search for
             
         Returns:
@@ -287,19 +340,35 @@ class GitHubRepository:
         """
         evidence = []
         
-        for file_path in file_paths:
-            try:
-                content = self.repo.get_contents(file_path)
-                if content and content.type == "file":
-                    content_str = base64.b64decode(content.content).decode('utf-8')
-                    for keyword in keywords:
-                        if keyword.lower() in content_str.lower():
-                            evidence.append({
-                                "file": file_path,
-                                "keyword": keyword
-                            })
-            except Exception:
-                # File doesn't exist, skip
-                continue
+        if not self.repo_data or not self.content:
+            return evidence
+        
+        # Search for keywords in the entire content
+        content_lower = self.content.lower()
+        
+        for keyword in keywords:
+            keyword_lower = keyword.lower()
+            if keyword_lower in content_lower:
+                # Try to find a file context for the keyword
+                # Look for the keyword in context of a file mention
+                pattern = r'([-\w./]+\.\w+)[\s\n]+[^/]*({})[^/]*'.format(re.escape(keyword_lower))
+                matches = re.finditer(pattern, content_lower, re.IGNORECASE)
+                
+                # Add each match as evidence
+                found = False
+                for match in matches:
+                    file_path = match.group(1)
+                    evidence.append({
+                        "file": file_path,
+                        "keyword": keyword
+                    })
+                    found = True
+                
+                # If no file context found, add generic evidence
+                if not found:
+                    evidence.append({
+                        "file": "repository_content",
+                        "keyword": keyword
+                    })
                 
         return evidence

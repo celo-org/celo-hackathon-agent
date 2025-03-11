@@ -28,13 +28,21 @@ An intelligent tool that analyzes GitHub repositories for Celo hackathon project
    ```
 
 3. **Configure API tokens**:
-   - Create a GitHub token with repo scope at [GitHub Settings](https://github.com/settings/tokens)
    - Get an Anthropic API key from [Anthropic Console](https://console.anthropic.com/)
    - Create a `.env` file:
      ```
-     GITHUB_TOKEN=your_github_token_here
      ANTHROPIC_API_KEY=your_anthropic_api_key_here
      ```
+
+## 🔄 Repository Analysis with Gitingest
+
+This tool uses [gitingest](https://gitingest.com/) to analyze GitHub repositories. Gitingest provides:
+
+- Efficient repository data extraction without requiring GitHub tokens
+- Smart formatting optimized for LLM analysis
+- Comprehensive code samples and directory structure information
+
+The integration with gitingest simplifies the repository analysis process and eliminates the need for a GitHub API token.
 
 ## 🛠️ Usage
 

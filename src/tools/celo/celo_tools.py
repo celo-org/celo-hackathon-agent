@@ -47,13 +47,14 @@ def detect_celo_keywords(repo_url: str, code_samples: Optional[List[str]] = None
     """
     # Import here to avoid circular imports
     from src.analyzer.github_repo import GitHubRepository
+    from src.analyzer.celo_detector import CeloIntegrationDetector
     
     # Get configuration and detector
     config = Config.from_file()
     detector = get_celo_detector()
     github_repo = GitHubRepository(config)
     
-    # Setup repository connection
+    # Setup repository connection using gitingest
     repo_owner, repo_name = github_repo.setup_repository(repo_url)
     
     # Define keywords to search for
@@ -80,25 +81,19 @@ def detect_celo_keywords(repo_url: str, code_samples: Optional[List[str]] = None
                     })
                     break  # One evidence per file is enough
     
-    # If we have access to the repository, search files
-    if github_repo.repo and (not evidence or len(evidence) == 0):
+    # If we have access to the repository via gitingest, search content
+    if github_repo.repo_data and github_repo.content and (not evidence or len(evidence) == 0):
         try:
-            # Check specific config files first
-            config_evidence = detector.check_config_files(github_repo.repo)
-            if config_evidence:
-                evidence.extend(config_evidence)
+            # Use the CeloIntegrationDetector with gitingest data
+            detector = CeloIntegrationDetector(config)
+            repo_evidence = detector.search_repository_content(github_repo.content)
+            if repo_evidence:
+                evidence.extend(repo_evidence)
                 
-            # If no evidence in config files, check README files
-            if not evidence:
-                readme_evidence = detector.check_readme_files(github_repo.repo)
-                if readme_evidence:
-                    evidence.extend(readme_evidence)
-            
-            # If still no evidence, skip extensive search as it's covered by a different tool
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Error searching repository files: {str(e)}",
+                "error": f"Error searching repository content: {str(e)}",
                 "repo_owner": repo_owner,
                 "repo_name": repo_name
             }

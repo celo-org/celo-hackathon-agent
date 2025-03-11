@@ -124,7 +124,7 @@ def explore_repository_structure(repo_url: str, max_depth: int = 3, include_file
     github_repo = get_github_repo()
     repo_owner, repo_name = github_repo.setup_repository(repo_url)
     
-    if not github_repo.repo:
+    if not github_repo.repo_data:
         return {
             "success": False,
             "error": f"Could not access repository {repo_owner}/{repo_name}",
@@ -133,15 +133,31 @@ def explore_repository_structure(repo_url: str, max_depth: int = 3, include_file
         }
     
     try:
-        # Get repository structure
-        structure = _explore_directory("", github_repo, max_depth, include_files)
-        
-        return {
-            "success": True,
-            "repo_owner": repo_owner,
-            "repo_name": repo_name,
-            "structure": structure
-        }
+        # Get repository structure from gitingest
+        if github_repo.tree:
+            # Use the tree data from gitingest to create a structured view
+            structure = _explore_directory("", github_repo, max_depth, include_files)
+            
+            return {
+                "success": True,
+                "repo_owner": repo_owner,
+                "repo_name": repo_name,
+                "structure": structure
+            }
+        else:
+            # If no tree data available, return a simplified structure
+            return {
+                "success": True,
+                "repo_owner": repo_owner,
+                "repo_name": repo_name,
+                "structure": {
+                    "type": "directory",
+                    "name": "root",
+                    "contents": [],
+                    "note": "Limited repository structure information available"
+                },
+                "tree_data": github_repo.tree or "No tree data available"
+            }
     except Exception as e:
         return {
             "success": False,
@@ -151,36 +167,77 @@ def explore_repository_structure(repo_url: str, max_depth: int = 3, include_file
         }
 
 def _explore_directory(path: str, github_repo: GitHubRepository, max_depth: int, include_files: bool) -> Dict[str, Any]:
-    """Recursively explore directory structure."""
+    """Process directory structure from gitingest tree data."""
     if max_depth <= 0:
         return {"type": "directory", "name": os.path.basename(path or "root"), "truncated": True}
     
     try:
-        contents = github_repo.repo.get_contents(path)
+        # With gitingest, we don't access directories directly but parse the tree structure
+        if not github_repo.tree:
+            return {"type": "directory", "name": os.path.basename(path or "root"), "error": "No tree data available"}
         
-        if not isinstance(contents, list):
-            contents = [contents]
-        
+        # Create a result structure
         result = {
             "type": "directory",
-            "name": os.path.basename(path or "root"),
+            "name": os.path.basename(path or "root") or "root",
             "contents": []
         }
         
-        dirs = []
+        # Normalize the path for comparison
+        norm_path = path.rstrip("/") + "/" if path else ""
+        
+        # Find all direct children of the current path
+        dirs = set()
         files = []
         
-        for item in contents:
-            if item.type == "dir":
-                if max_depth > 1:
-                    dirs.append(_explore_directory(item.path, github_repo, max_depth - 1, include_files))
-                else:
-                    dirs.append({"type": "directory", "name": os.path.basename(item.path), "truncated": True})
-            elif item.type == "file" and include_files:
-                files.append({"type": "file", "name": os.path.basename(item.path), "size": item.size})
+        for line in github_repo.tree.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if this entry is a child of the current path
+            if not path:  # Root directory
+                # For the root, we're looking for top-level entries
+                # Either no slashes, or just one at the end (indicating directory)
+                parts = line.split("/")
+                if len(parts) == 1 or (len(parts) == 2 and parts[1] == ""):
+                    if line.endswith("/"):
+                        # This is a directory
+                        dirs.add(parts[0])
+                    else:
+                        # This is a file
+                        files.append({"type": "file", "name": parts[0], "size": 0})
+            else:
+                # For non-root directories, the entry must start with the current path
+                if line.startswith(norm_path):
+                    # Get the relative path
+                    rel_path = line[len(norm_path):]
+                    if not rel_path:
+                        continue
+                        
+                    # Split into parts to check if it's a direct child
+                    parts = rel_path.split("/")
+                    if len(parts) == 1 or (len(parts) == 2 and parts[1] == ""):
+                        if rel_path.endswith("/"):
+                            # This is a directory
+                            dirs.add(parts[0])
+                        elif include_files:
+                            # This is a file
+                            files.append({"type": "file", "name": parts[0], "size": 0})
         
-        # Sort directories and files by name
-        result["contents"] = sorted(dirs, key=lambda x: x["name"]) + sorted(files, key=lambda x: x["name"])
+        # Process directories recursively if needed
+        dir_results = []
+        for dir_name in dirs:
+            if max_depth > 1:
+                # Recursively process subdirectory
+                dir_path = os.path.join(path, dir_name)
+                dir_results.append(_explore_directory(dir_path, github_repo, max_depth - 1, include_files))
+            else:
+                # Just add a truncated entry
+                dir_results.append({"type": "directory", "name": dir_name, "truncated": True})
+        
+        # Sort and combine
+        result["contents"] = sorted(dir_results, key=lambda x: x["name"]) + sorted(files, key=lambda x: x["name"])
         
         return result
     except Exception as e:

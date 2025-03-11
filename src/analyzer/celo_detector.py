@@ -158,14 +158,14 @@ class CeloIntegrationDetector:
             )
 
     @with_timeout(60)
-    def check_integration(
-        self, repo, repo_owner: str, repo_name: str
+    def check_integration_with_gitingest(
+        self, repo_content: str, repo_owner: str, repo_name: str
     ) -> CeloIntegrationResult:
         """
-        Check for Celo integration in a repository.
+        Check for Celo integration in a repository using gitingest data.
 
         Args:
-            repo: GitHub repository object
+            repo_content: Repository content from gitingest
             repo_owner: Owner of the repository
             repo_name: Name of the repository
 
@@ -174,15 +174,108 @@ class CeloIntegrationDetector:
         """
         try:
             # Step 1: Check config files for Celo keywords
-            evidence = self.check_config_files(repo)
+            evidence = self.check_config_files(repo_content)
 
             # Step 2: If no evidence found, check README files
             if not evidence:
-                evidence = self.check_readme_files(repo)
+                evidence = self.check_readme_files(repo_content)
 
-            # Step 3: If still no evidence, search code in all files
+            # Step 3: If still no evidence, search all content
             if not evidence:
-                evidence = self.search_repository_files(repo)
+                evidence = self.search_repository_content(repo_content)
+
+            # Determine integration status
+            is_integrated = len(evidence) > 0
+
+            # Step 4: If integrated, run deeper analysis with LLM
+            analysis = None
+            if is_integrated and self.llm is not None:
+                analysis = self.analyze_celo_evidence(evidence)
+
+            return {
+                "integrated": is_integrated,
+                "evidence": evidence,
+                "analysis": analysis,
+                "repositories_with_celo": 1 if is_integrated else 0,
+            }
+        except Exception as e:
+            error_msg = f"Error checking Celo integration: {str(e)}"
+            print(error_msg)
+
+            # Fallback to checking repository name
+            has_celo_in_name = "celo" in repo_name.lower()
+
+            evidence = []
+            if has_celo_in_name:
+                evidence = [{"file": "Repository name", "keyword": "celo"}]
+
+            return {
+                "integrated": has_celo_in_name,
+                "evidence": evidence,
+                "error": error_msg,
+                "repositories_with_celo": 1 if has_celo_in_name else 0,
+            }
+    
+    @with_timeout(60)
+    def check_integration(
+        self, repo, repo_owner: str, repo_name: str
+    ) -> CeloIntegrationResult:
+        """
+        Check for Celo integration in a repository.
+
+        Args:
+            repo: GitHub repository object (can be a GitHubRepository instance with repo_data attribute)
+            repo_owner: Owner of the repository
+            repo_name: Name of the repository
+
+        Returns:
+            CeloIntegrationResult with integration details
+        """
+        # Check if this is a gitingest-based repository object
+        if hasattr(repo, 'repo_data') and hasattr(repo, 'content') and repo.content:
+            return self.check_integration_with_gitingest(repo.content, repo_owner, repo_name)
+        
+        # Legacy implementation for PyGitHub
+        try:
+            # Step 1: Check config files for Celo keywords
+            evidence = []
+            
+            # Check for the existence of specific config files
+            for file_path in self.config.celo_files:
+                try:
+                    content = repo.get_contents(file_path)
+                    if content and content.type == "file":
+                        content_str = base64.b64decode(content.content).decode("utf-8")
+                        for keyword in self.config.celo_keywords:
+                            if keyword.lower() in content_str.lower():
+                                evidence.append({"file": file_path, "keyword": keyword})
+                except Exception:
+                    # File doesn't exist, skip
+                    continue
+            
+            # Step 2: If no evidence found, check README files
+            if not evidence:
+                readme_files = [
+                    "README.md",
+                    "README",
+                    "Readme.md",
+                    "readme.md",
+                    "docs/README.md",
+                    "docs/Readme.md",
+                    "documentation/README.md",
+                ]
+                
+                for readme_file in readme_files:
+                    try:
+                        content = repo.get_contents(readme_file)
+                        if content and content.type == "file":
+                            content_str = base64.b64decode(content.content).decode("utf-8")
+                            for keyword in self.config.celo_keywords:
+                                if keyword.lower() in content_str.lower():
+                                    evidence.append({"file": readme_file, "keyword": keyword})
+                    except Exception:
+                        # File doesn't exist, skip
+                        continue
 
             # Determine integration status
             is_integrated = len(evidence) > 0
@@ -216,44 +309,65 @@ class CeloIntegrationDetector:
                 "repositories_with_celo": 1 if has_celo_in_name else 0,
             }
 
-    def check_config_files(self, repo) -> List[CeloEvidence]:
+    def check_config_files(self, repo_content: str) -> List[CeloEvidence]:
         """
-        Check configuration files for Celo keywords.
+        Check repository content for Celo keywords in configuration files.
 
         Args:
-            repo: GitHub repository object
+            repo_content: Repository content from gitingest
 
         Returns:
             List of evidence dictionaries
         """
         evidence = []
+        config_files = self.config.celo_files
 
-        for file_path in self.config.celo_files:
-            try:
-                content = repo.get_contents(file_path)
-                if content and content.type == "file":
-                    content_str = base64.b64decode(content.content).decode("utf-8")
+        # Process the content to find configuration files
+        for file_path in config_files:
+            # Look for file patterns in the content
+            file_lower = file_path.lower()
+            repo_content_lower = repo_content.lower()
+            
+            # If the file is mentioned in the content
+            if file_lower in repo_content_lower:
+                # Try to find the file content
+                file_pattern = r'{}[\s\n]+(.*?)(?=[-\w./]+\.\w+|\Z)'.format(file_path.replace('.', '\\.'))
+                import re
+                match = re.search(file_pattern, repo_content, re.DOTALL | re.IGNORECASE)
+                
+                if match:
+                    file_content = match.group(1)
+                    # Check for Celo keywords
                     for keyword in self.config.celo_keywords:
-                        if keyword.lower() in content_str.lower():
+                        if keyword.lower() in file_content.lower():
                             evidence.append({"file": file_path, "keyword": keyword})
-            except Exception:
-                # File doesn't exist, skip
-                continue
+                            break
+                else:
+                    # If we can't find specific content, just check if the keyword appears near the filename
+                    for keyword in self.config.celo_keywords:
+                        keyword_lower = keyword.lower()
+                        # Check if keyword appears within 500 characters of the filename
+                        pattern = r'{}\s*[^/]{{0,500}}{}'.format(
+                            re.escape(file_lower), 
+                            re.escape(keyword_lower)
+                        )
+                        if re.search(pattern, repo_content_lower, re.DOTALL):
+                            evidence.append({"file": file_path, "keyword": keyword})
+                            break
 
         return evidence
 
-    def check_readme_files(self, repo) -> List[CeloEvidence]:
+    def check_readme_files(self, repo_content: str) -> List[CeloEvidence]:
         """
-        Check README files for Celo keywords.
+        Check repository content for Celo keywords in README files.
 
         Args:
-            repo: GitHub repository object
+            repo_content: Repository content from gitingest
 
         Returns:
             List of evidence dictionaries
         """
         evidence = []
-
         readme_files = [
             "README.md",
             "README",
@@ -264,81 +378,74 @@ class CeloIntegrationDetector:
             "documentation/README.md",
         ]
 
-        for readme_file in readme_files:
-            try:
-                content = repo.get_contents(readme_file)
-                if content and content.type == "file":
-                    content_str = base64.b64decode(content.content).decode("utf-8")
+        # Process the content to find README files
+        for file_path in readme_files:
+            # Look for file patterns in the content
+            file_lower = file_path.lower()
+            repo_content_lower = repo_content.lower()
+            
+            # If the file is mentioned in the content
+            if file_lower in repo_content_lower:
+                # Try to find the file content
+                file_pattern = r'{}[\s\n]+(.*?)(?=[-\w./]+\.\w+|\Z)'.format(file_path.replace('.', '\\.'))
+                import re
+                match = re.search(file_pattern, repo_content, re.DOTALL | re.IGNORECASE)
+                
+                if match:
+                    file_content = match.group(1)
+                    # Check for Celo keywords
                     for keyword in self.config.celo_keywords:
-                        if keyword.lower() in content_str.lower():
-                            evidence.append({"file": readme_file, "keyword": keyword})
-            except Exception:
-                # File doesn't exist, skip
-                continue
+                        if keyword.lower() in file_content.lower():
+                            evidence.append({"file": file_path, "keyword": keyword})
+                            break
+                else:
+                    # If we can't find specific content, just check if the keyword appears near the filename
+                    for keyword in self.config.celo_keywords:
+                        keyword_lower = keyword.lower()
+                        # Check if keyword appears within 1000 characters of the filename (README files can be long)
+                        pattern = r'{}\s*[^/]{{0,1000}}{}'.format(
+                            re.escape(file_lower), 
+                            re.escape(keyword_lower)
+                        )
+                        if re.search(pattern, repo_content_lower, re.DOTALL):
+                            evidence.append({"file": file_path, "keyword": keyword})
+                            break
 
         return evidence
 
-    def search_repository_files(self, repo) -> List[CeloEvidence]:
+    def search_repository_content(self, repo_content: str) -> List[CeloEvidence]:
         """
-        Search all repository files for Celo keywords.
+        Search repository content for Celo keywords using gitingest data.
 
         Args:
-            repo: GitHub repository object
+            repo_content: Repository content from gitingest
 
         Returns:
             List of evidence dictionaries
         """
         evidence = []
-
-        # Get all repository contents
-        contents = repo.get_contents("")
-        files_to_process = list(contents)
-        processed_paths = set()
-
-        # Maximum files to process to avoid excessive API calls
-        max_files_to_process = 200
-        files_processed = 0
-
-        # Process files recursively
-        while files_to_process and files_processed < max_files_to_process:
-            content = files_to_process.pop(0)
-            if content.path in processed_paths:
-                continue
-
-            processed_paths.add(content.path)
-            files_processed += 1
-
-            if content.type == "dir":
-                try:
-                    dir_contents = repo.get_contents(content.path)
-                    if isinstance(dir_contents, list):
-                        files_to_process.extend(dir_contents)
-                    else:
-                        files_to_process.append(dir_contents)
-                except Exception:
-                    # Skip inaccessible directories
-                    continue
-
-            elif content.type == "file":
-                # Skip binary files and files that are too large
-                if content.path.lower().endswith(
-                    (".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".gz", ".tar")
-                ):
-                    continue
-
-                try:
-                    # Read file content
-                    file_content = base64.b64decode(content.content).decode("utf-8")
-
-                    # Check for Celo keywords
-                    for keyword in self.config.celo_keywords:
-                        if keyword.lower() in file_content.lower():
-                            evidence.append({"file": content.path, "keyword": keyword})
-                            # Once evidence is found for this file, move to next file
-                            break
-                except Exception:
-                    # Skip files that can't be decoded
-                    continue
+        import re
+        
+        # Process the content to find Celo keywords
+        for keyword in self.config.celo_keywords:
+            keyword_lower = keyword.lower()
+            if keyword_lower in repo_content.lower():
+                # Try to find a file context for the keyword
+                # Look for the keyword in context of a file mention
+                pattern = r'([-\w./]+\.\w+)[\s\n]+[^/]*{}[^/]*'.format(re.escape(keyword_lower))
+                matches = re.finditer(pattern, repo_content.lower(), re.IGNORECASE)
+                
+                # Add each match as evidence
+                found_files = set()  # Keep track of files we've already added
+                for match in matches:
+                    file_path = match.group(1)
+                    if file_path not in found_files:
+                        evidence.append({"file": file_path, "keyword": keyword})
+                        found_files.add(file_path)
+                
+                # If no file context found, add generic evidence
+                if not found_files:
+                    evidence.append({"file": "repository_content", "keyword": keyword})
 
         return evidence
 

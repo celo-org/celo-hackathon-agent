@@ -24,5 +24,12 @@
     "yarn.lock",
     "README.md"
   ],
-  "github_token": ""
+  "github_token": "",
+  "gitingest": {
+    "max_code_samples": 10,
+    "sample_size_limit": 1000,
+    "max_files_to_process": 100,
+    "timeout": 30
+  },
+  "model_name": "claude-3-sonnet-20240229"
 }
