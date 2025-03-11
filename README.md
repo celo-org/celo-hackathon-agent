@@ -62,19 +62,13 @@ python create_sample_data.py
 
 ### 🔍 Run the Analyzer
 
-#### Standard Version
 ```bash
-python run.py --excel sample_projects.xlsx --output reports --verbose
-```
-
-#### Advanced Agent-Based Version with Parallel Execution
-```bash
-python run_agents.py --excel sample_projects.xlsx --output reports --verbose --workers 4
+python run.py --excel sample_projects.xlsx --output reports --verbose --workers 4
 ```
 
 #### Analyze a Single Repository
 ```bash
-python run_agents.py --single https://github.com/username/repository --output reports
+python run.py --single https://github.com/username/repository --output reports
 ```
 
 #### Optional Arguments:
@@ -107,8 +101,7 @@ celo-hackathon-agent/
 │   │   ├── types.py                # TypedDict definitions
 │   │   └── config.py               # Configuration handling
 │   ├── analyzer/       # Analysis components
-│   │   ├── repo_analyzer.py        # Main analyzer class
-│   │   ├── github_repo.py          # GitHub repository access
+│   │   ├── github_repo.py          # GitHub repository access using gitingest
 │   │   ├── code_quality.py         # Code quality analysis
 │   │   └── celo_detector.py        # Celo integration detection
 │   ├── tools/          # LangChain tools
@@ -119,18 +112,16 @@ celo-hackathon-agent/
 │   ├── utils/          # Utility functions
 │   │   ├── spinner.py              # Progress indicator
 │   │   └── timeout.py              # Timeout handling
-│   ├── reporting/      # Report generation
-│   │   └── report_generator.py     # Markdown report creation
-│   └── main.py         # Main application logic
-├── run.py              # Standard entry point script
-├── run_agents.py       # Advanced agent-based entry point with parallel execution
+│   └── reporting/      # Report generation
+│       └── report_generator.py     # Markdown report creation
+├── run.py              # Entry point script with parallel execution support
 ├── config.json         # Configuration
 └── requirements.txt    # Dependencies
 ```
 
 ## 🤖 AI Agent Architecture
 
-The advanced version of this tool uses a specialized LangChain agent-based architecture:
+This tool uses a specialized LangChain agent-based architecture:
 
 ### Agent Specialization
 
@@ -165,7 +156,7 @@ The orchestration system manages the analysis workflow with:
 
 Run with multiple workers to analyze repositories simultaneously:
 ```bash
-python run_agents.py --workers 4 --excel sample_projects.xlsx
+python run.py --workers 4 --excel sample_projects.xlsx
 ```
 
 ## 📝 Output

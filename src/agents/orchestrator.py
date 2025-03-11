@@ -71,10 +71,50 @@ class AnalysisOrchestrator:
             repo_analysis = analyze_repository(repo_url, self.verbose)
             repo_time = time.time() - repo_start
             
-            # Extract key information
+            # Extract key information from repository analysis
             repo_owner = repo_analysis.get("repo_owner", "unknown")
             repo_name = repo_analysis.get("repo_name", "unknown")
-            repo_description = repo_analysis.get("repo_description", "")
+            repo_description = ""
+            
+            # Try to extract repository description from the analysis
+            if "analysis" in repo_analysis:
+                # Try to find description in the analysis text
+                analysis_text = repo_analysis["analysis"]
+                if isinstance(analysis_text, str):
+                    description_lines = [line for line in analysis_text.split('\n') if "description" in line.lower()]
+                    if description_lines:
+                        # Use the first line containing "description"
+                        description_line = description_lines[0]
+                        parts = description_line.split(":", 1)
+                        if len(parts) > 1:
+                            repo_description = parts[1].strip()
+            
+            # If no description was found, try to extract it from agent result
+            if not repo_description and "agent_result" in repo_analysis:
+                result = repo_analysis["agent_result"]
+                if isinstance(result, dict) and "output" in result:
+                    output = result["output"]
+                    if isinstance(output, str):  # Make sure output is a string
+                        # Try to find description in the output
+                        description_lines = [line for line in output.split('\n') if "description" in line.lower()]
+                        if description_lines:
+                            # Use the first line containing "description"
+                            description_line = description_lines[0]
+                            parts = description_line.split(":", 1)
+                            if len(parts) > 1:
+                                repo_description = parts[1].strip()
+                    elif isinstance(output, list) and len(output) > 0:
+                        # Handle case where output is a list (agent messages)
+                        for item in output:
+                            if isinstance(item, dict) and "text" in item:
+                                text = item["text"]
+                                description_lines = [line for line in text.split('\n') if "description" in line.lower()]
+                                if description_lines:
+                                    description_line = description_lines[0]
+                                    parts = description_line.split(":", 1)
+                                    if len(parts) > 1:
+                                        repo_description = parts[1].strip()
+                                        break
             
             # Find code samples in results
             code_samples = []
@@ -101,13 +141,36 @@ class AnalysisOrchestrator:
             
             # Step 2: Code quality analysis
             quality_start = time.time()
-            quality_analysis = analyze_code_quality(
-                code_samples, 
-                repo_owner, 
-                repo_name, 
-                repo_description, 
-                verbose=self.verbose
-            )
+            
+            # Add check for empty code samples
+            if not code_samples or len(code_samples) == 0:
+                # If no code samples could be found, create a default code quality analysis
+                quality_analysis = {
+                    "repo_owner": repo_owner or "unknown",
+                    "repo_name": repo_name or "unknown",
+                    "analysis": {
+                        "overall_score": 0,
+                        "readability": 0,
+                        "standards": 0,
+                        "complexity": 0,
+                        "testing": 0,
+                        "ai_analysis": {
+                            "overall_analysis": "Could not analyze code quality due to insufficient code samples.",
+                            "suggestions": ["Provide valid repository URL or code samples for analysis"]
+                        },
+                        "error": "No code samples found in repository"
+                    }
+                }
+            else:
+                # Normal flow - analyze available code samples
+                quality_analysis = analyze_code_quality(
+                    code_samples, 
+                    repo_owner or "unknown", 
+                    repo_name or "unknown", 
+                    repo_description or "", 
+                    verbose=self.verbose
+                )
+                
             quality_time = time.time() - quality_start
             
             # Update progress
@@ -117,14 +180,30 @@ class AnalysisOrchestrator:
             
             # Step 3: Celo integration analysis
             celo_start = time.time()
-            celo_analysis = analyze_celo_integration(
-                repo_url,
-                code_samples,
-                repo_owner,
-                repo_name,
-                repo_description,
-                verbose=self.verbose
-            )
+            try:
+                celo_analysis = analyze_celo_integration(
+                    repo_url,
+                    code_samples or [],  # Ensure we pass a valid list even if empty
+                    repo_owner or "unknown",
+                    repo_name or "unknown",
+                    repo_description or "",
+                    verbose=self.verbose
+                )
+            except Exception as e:
+                # Handle errors in Celo integration analysis
+                logger.error(f"Error in Celo integration analysis: {str(e)}")
+                
+                # Provide a fallback Celo analysis
+                celo_analysis = {
+                    "repo_owner": repo_owner or "unknown",
+                    "repo_name": repo_name or "unknown",
+                    "analysis": {
+                        "integrated": False,
+                        "evidence": [],
+                        "repositories_with_celo": 0,
+                        "error": f"Error analyzing Celo integration: {str(e)}"
+                    }
+                }
             celo_time = time.time() - celo_start
             
             # Update progress

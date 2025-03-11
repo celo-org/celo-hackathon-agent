@@ -113,11 +113,38 @@ def analyze_celo_integration(
     Returns:
         Dictionary containing Celo integration analysis results
     """
-    # Create the agent
-    agent = create_celo_agent(verbose=verbose)
-    
-    # Build input message
-    input_message = f"""Analyze the GitHub repository at {repo_url} ({repo_owner}/{repo_name}) to determine if it integrates with the Celo blockchain.
+    try:
+        # Check for special cases
+        if "celo" in repo_owner.lower() or "celo" in repo_name.lower():
+            # If repository is owned by Celo or has Celo in its name, it's likely a Celo project
+            is_celo_org = "celo-org" in repo_owner.lower()
+            if verbose:
+                print(f"Detected Celo in repository name/owner: {repo_owner}/{repo_name}, assuming Celo integration")
+                
+            # For Celo organization repositories, we can assume Celo integration
+            if is_celo_org:
+                return {
+                    "repo_url": repo_url,
+                    "repo_owner": repo_owner,
+                    "repo_name": repo_name,
+                    "analysis": {
+                        "integrated": True,
+                        "evidence": [{"file": "Repository owner", "keyword": "celo-org"}],
+                        "analysis": "This is an official Celo repository, so it is integrated with the Celo blockchain.",
+                        "repositories_with_celo": 1
+                    }
+                }
+        
+        # Create the agent
+        agent = create_celo_agent(verbose=verbose)
+        
+        # Normalize empty code samples to an empty list
+        if not code_samples:
+            code_samples = []
+        
+        # Build input message based on available information
+        if code_samples:
+            input_message = f"""Analyze the GitHub repository at {repo_url} ({repo_owner}/{repo_name}) to determine if it integrates with the Celo blockchain.
 
 Repository Description: {repo_description}
 
@@ -127,23 +154,57 @@ smart contract integration, use of Celo tokens, or other interactions with the C
 Provide a clear determination of whether this project integrates with Celo, including supporting evidence and an explanation of how Celo is used.
 
 Start by using the detect_celo_keywords tool to search for Celo-related terms in the repository."""
-    
-    # Run the agent
-    result = agent.invoke({
-        "input": input_message,
-        "chat_history": [],
-        "repo_url": repo_url,
-        "code_samples": code_samples,
-        "repo_owner": repo_owner,
-        "repo_name": repo_name,
-        "repo_description": repo_description
-    })
-    
-    # Extract the result from the agent's response
-    return {
-        "repo_url": repo_url,
-        "repo_owner": repo_owner,
-        "repo_name": repo_name,
-        "analysis": result["output"],
-        "agent_result": result
-    }
+        else:
+            # If no code samples, just use repository metadata
+            input_message = f"""Analyze the GitHub repository at {repo_url} ({repo_owner}/{repo_name}) to determine if it integrates with the Celo blockchain.
+
+Repository Description: {repo_description}
+
+I don't have any code samples from this repository. Please use the detect_celo_keywords tool to search for 
+Celo-related terms in the repository name, description, and any available metadata. Then evaluate if this 
+project is likely to integrate with the Celo blockchain."""
+        
+        # Run the agent
+        result = agent.invoke({
+            "input": input_message,
+            "chat_history": [],
+            "repo_url": repo_url,
+            "code_samples": code_samples,
+            "repo_owner": repo_owner,
+            "repo_name": repo_name,
+            "repo_description": repo_description
+        })
+        
+        # Extract the result from the agent's response
+        return {
+            "repo_url": repo_url,
+            "repo_owner": repo_owner,
+            "repo_name": repo_name,
+            "analysis": result["output"],
+            "agent_result": result
+        }
+    except Exception as e:
+        # Handle any exceptions and provide a fallback result
+        import traceback
+        error_details = traceback.format_exc()
+        
+        if verbose:
+            print(f"Error in Celo integration analysis: {str(e)}")
+            print(error_details)
+        
+        # Check if this is a Celo repository based on name/owner
+        is_celo_related = "celo" in repo_owner.lower() or "celo" in repo_name.lower()
+        
+        # Return a fallback result
+        return {
+            "repo_url": repo_url,
+            "repo_owner": repo_owner,
+            "repo_name": repo_name,
+            "analysis": {
+                "integrated": is_celo_related,
+                "evidence": [{"file": "Repository name/owner", "keyword": "celo"}] if is_celo_related else [],
+                "error": f"Error analyzing Celo integration: {str(e)}",
+                "repositories_with_celo": 1 if is_celo_related else 0
+            },
+            "error": str(e)
+        }

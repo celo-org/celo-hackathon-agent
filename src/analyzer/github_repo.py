@@ -66,23 +66,105 @@ class GitHubRepository:
         # Parse GitHub URL to get owner and name
         repo_owner, repo_name = self.parse_github_url(repo_url)
         
-        try:
-            # Use gitingest to get repository data
-            if progress_callback := getattr(self, 'progress_callback', None):
-                progress_callback(f"Using gitingest to analyze repository {repo_owner}/{repo_name}")
+        # Try alternative approach if direct URL fails
+        backup_urls = []
+        if "github.com" in repo_url:
+            # Add an alternative URL without www. prefix or with it
+            if "www.github.com" in repo_url:
+                backup_urls.append(repo_url.replace("www.github.com", "github.com"))
+            else:
+                backup_urls.append(repo_url.replace("github.com", "www.github.com"))
             
-            # Call gitingest to get repository data
-            self.summary, self.tree, self.content = ingest(repo_url)
+            # Try with and without trailing slash
+            if repo_url.endswith('/'):
+                backup_urls.append(repo_url[:-1])
+            else:
+                backup_urls.append(repo_url + '/')
+                
+        # Try accessing with direct API URL if all else fails
+        api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}"
+        backup_urls.append(api_url)
+        
+        # Message about our approach
+        if progress_callback := getattr(self, 'progress_callback', None):
+            progress_callback(f"Using gitingest to analyze repository {repo_owner}/{repo_name}")
+        
+        # Initialize error storage
+        all_errors = []
+        
+        # Try with original URL first
+        try:
+            # Call gitingest to get repository data with timeout
+            import asyncio
+            from gitingest import ingest_async
+            
+            # Use asyncio with timeout
+            async def fetch_with_timeout():
+                return await asyncio.wait_for(ingest_async(repo_url), timeout=60)
+            
+            # Try to fetch repository data
+            self.summary, self.tree, self.content = asyncio.run(fetch_with_timeout())
             self.repo_data = {
                 "summary": self.summary,
                 "tree": self.tree,
                 "content": self.content
             }
+            # If successful, return immediately
             
+            # Store repository info
+            self.repo_owner = repo_owner
+            self.repo_name = repo_name
+            
+            return repo_owner, repo_name
         except Exception as e:
-            error_msg = f"Error accessing repository {repo_owner}/{repo_name}: {str(e)}"
+            error_msg = f"Error accessing repository {repo_owner}/{repo_name} with primary URL: {str(e)}"
             print(error_msg)
+            all_errors.append(error_msg)
+        
+        # Try backup URLs if primary fails
+        for backup_url in backup_urls:
+            try:
+                if progress_callback := getattr(self, 'progress_callback', None):
+                    progress_callback(f"Retrying with alternative URL: {backup_url}")
+                
+                # Use ingest directly for simplicity in the retry
+                self.summary, self.tree, self.content = ingest(backup_url)
+                self.repo_data = {
+                    "summary": self.summary,
+                    "tree": self.tree,
+                    "content": self.content
+                }
+                
+                # If successful, break the loop
+                break
+            except Exception as e:
+                error_msg = f"Error accessing repository with backup URL {backup_url}: {str(e)}"
+                print(error_msg)
+                all_errors.append(error_msg)
+        
+        # If we still don't have data after trying all URLs, set to None
+        if not hasattr(self, 'summary') or not self.summary:
             self.repo_data = None
+            self.summary = None
+            self.tree = None
+            self.content = None
+            
+            # If we have progress callback, send a message
+            if progress_callback := getattr(self, 'progress_callback', None):
+                progress_callback(f"Failed to access repository {repo_owner}/{repo_name} after multiple attempts")
+                
+            # Try to create minimal summary for empty repositories
+            self.summary = f"Repository: {repo_owner}/{repo_name}\nDescription: Not available\nFiles: 0\nEmpty repository or access error"
+            self.tree = ""
+            self.content = f"Repository {repo_owner}/{repo_name} could not be accessed.\nErrors:\n" + "\n".join(all_errors)
+            
+            # Set minimal repo data
+            self.repo_data = {
+                "summary": self.summary,
+                "tree": self.tree,
+                "content": self.content,
+                "error": "\n".join(all_errors)
+            }
         
         # Store repository info
         self.repo_owner = repo_owner
@@ -187,16 +269,185 @@ class GitHubRepository:
         # Code samples for analysis
         code_samples = []
         
-        if not self.repo_data or not self.content:
+        if not self.repo_data:
+            if progress_callback:
+                progress_callback("No repository data available. Using fallback strategy...")
+                
+            # Create a synthetic repository sample based on URL
+            repo_url = f"https://github.com/{self.repo_owner}/{self.repo_name}"
+            
+            # Try to get some data about the repository from GitHub API
+            import requests
+            try:
+                if progress_callback:
+                    progress_callback("Trying to fetch basic repository information...")
+                response = requests.get(f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}")
+                
+                if response.status_code == 200:
+                    # Successful response
+                    api_data = response.json()
+                    
+                    # Create a synthetic summary from API data
+                    repo_desc = api_data.get('description', 'No description available')
+                    stars = api_data.get('stargazers_count', 0)
+                    forks = api_data.get('forks_count', 0)
+                    language = api_data.get('language', 'Unknown')
+                    updated = api_data.get('updated_at', 'Unknown date')
+                    
+                    self.summary = f"Repository: {self.repo_owner}/{self.repo_name}\nDescription: {repo_desc}\nStars: {stars}\nForks: {forks}\nLanguage: {language}\nLast Updated: {updated}"
+                    
+                    # Attempt to get the README content
+                    try:
+                        readme_response = requests.get(f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/readme")
+                        if readme_response.status_code == 200:
+                            import base64
+                            readme_data = readme_response.json()
+                            readme_content = base64.b64decode(readme_data.get('content', '')).decode('utf-8')
+                            
+                            # Add README as a synthetic code sample
+                            code_samples.append(f"File: README.md\n\n{readme_content[:2000]}...\n\n")
+                            
+                            # Update file count
+                            file_count += 1
+                            doc_file_count += 1
+                    except Exception as e:
+                        if progress_callback:
+                            progress_callback(f"Could not retrieve README: {str(e)}")
+                    
+                    # Try to get some file structure information
+                    try:
+                        contents_response = requests.get(f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/contents")
+                        if contents_response.status_code == 200:
+                            contents_data = contents_response.json()
+                            
+                            # Build a tree structure
+                            tree_lines = []
+                            for item in contents_data:
+                                file_type = item.get('type', '')
+                                name = item.get('name', '')
+                                path = item.get('path', '')
+                                
+                                if file_type == 'dir':
+                                    tree_lines.append(f"{path}/")
+                                else:
+                                    tree_lines.append(path)
+                                    
+                                    # Update file count
+                                    file_count += 1
+                                    
+                                    # Classify file type
+                                    if "test" in path.lower() or "spec" in path.lower():
+                                        test_file_count += 1
+                                        
+                                    if path.lower().endswith((".md", ".rst", ".txt", ".doc", ".docx")):
+                                        doc_file_count += 1
+                                    
+                                    # Check for code files
+                                    code_extensions = (".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".sol", 
+                                                    ".go", ".rb", ".php", ".c", ".cpp", ".cs")
+                                    if any(path.lower().endswith(ext) for ext in code_extensions):
+                                        code_files_count += 1
+                            
+                            self.tree = "\n".join(tree_lines)
+                            
+                            # Add tree as a synthetic code sample
+                            if self.tree:
+                                code_samples.append(f"Repository Structure:\n\n{self.tree}\n\n")
+                    except Exception as e:
+                        if progress_callback:
+                            progress_callback(f"Could not retrieve contents: {str(e)}")
+                    
+                    # Create a synthetic content using the repo URL
+                    self.content = f"Repository: {self.repo_owner}/{self.repo_name}\n\n{self.summary}\n\n"
+                    
+                    if self.tree:
+                        self.content += f"Repository Structure:\n\n{self.tree}\n\n"
+                    
+                    # Update the repo_data with the synthetic data
+                    self.repo_data = {
+                        "summary": self.summary,
+                        "tree": self.tree,
+                        "content": self.content,
+                        "synthetic": True
+                    }
+                    
+                    # Compile file metrics
+                    file_metrics = {
+                        "file_count": file_count,
+                        "test_file_count": test_file_count,
+                        "doc_file_count": doc_file_count,
+                        "code_files_analyzed": code_files_count
+                    }
+                    
+                    if progress_callback:
+                        progress_callback(f"Created synthetic repository data with {len(code_samples)} code samples")
+                    
+                    return file_metrics, code_samples
+                
+            except Exception as e:
+                if progress_callback:
+                    progress_callback(f"Error in fallback strategy: {str(e)}")
+            
+            # If we get here, all fallback strategies failed
             if progress_callback:
                 progress_callback("No repository data available. Unable to collect code samples.")
-            return {
+            
+            # Add a synthetic sample with repo info
+            file_metrics = {
                 "file_count": 0,
                 "test_file_count": 0,
                 "doc_file_count": 0,
                 "code_files_analyzed": 0
-            }, []
+            }
+            
+            repo_info = f"Repository: {self.repo_owner}/{self.repo_name}\nURL: https://github.com/{self.repo_owner}/{self.repo_name}"
+            code_samples.append(f"Repository Info:\n\n{repo_info}\n\n")
+            
+            return file_metrics, code_samples
+            
+        if not self.content:
+            if progress_callback:
+                progress_callback("Repository data available but no content found.")
+            # No content, but we have repo_data - create minimal code samples
+            if self.summary:
+                code_samples.append(f"Repository Summary:\n\n{self.summary}\n\n")
+            if self.tree:
+                code_samples.append(f"Repository Structure:\n\n{self.tree[:1000]}\n\n")
+                
+            # Compile file metrics from tree if available
+            if self.tree:
+                for line in self.tree.split("\n"):
+                    if line.strip():
+                        file_count += 1
+                        file_path = line.strip()
+                        
+                        # Classify file type
+                        if "test" in file_path.lower() or "spec" in file_path.lower():
+                            test_file_count += 1
+                            
+                        if file_path.lower().endswith((".md", ".rst", ".txt", ".doc", ".docx")):
+                            doc_file_count += 1
+                        
+                        # Check for code files
+                        code_extensions = (".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".sol", 
+                                        ".go", ".rb", ".php", ".c", ".cpp", ".cs")
+                        if any(file_path.lower().endswith(ext) for ext in code_extensions):
+                            code_files_count += 1
+            
+            # Compile file metrics
+            file_metrics = {
+                "file_count": file_count,
+                "test_file_count": test_file_count,
+                "doc_file_count": doc_file_count,
+                "code_files_analyzed": code_files_count
+            }
+            
+            if progress_callback:
+                progress_callback(f"Created minimal code samples from repository metadata")
+                
+            return file_metrics, code_samples
         
+        # If we get here, we have content to process
         if progress_callback:
             progress_callback("Processing repository data from gitingest...")
         

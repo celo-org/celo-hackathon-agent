@@ -1,6 +1,59 @@
-.venv
-sample_projects.xlsx
-.env
-reports/
+# Python
 __pycache__/
-analysis.log
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.env
+.venv/
+
+# IDE Files
+.idea/
+.vscode/
+*.sublime-workspace
+
+# Logs
+logs/
+*.log
+
+# Reports
+reports/
+
+# Excel
+*.xlsx
+\!sample_projects.xlsx
+
+# Mac OS specific
+.DS_Store
+
+# Temp files
+*.tmp
+tmp/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Legacy files
+main.py
+src/main.py
+src/analyzer/repo_analyzer.py

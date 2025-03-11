@@ -103,6 +103,23 @@ def analyze_repository(repo_url: str, verbose: bool = False) -> Dict[str, Any]:
     Returns:
         Dictionary containing analysis results
     """
+    # Extract repo owner and name from URL
+    from src.analyzer.github_repo import GitHubRepository
+    from src.models.config import Config
+    
+    # Create a temporary GitHubRepository instance to parse the URL
+    config = Config.from_file()
+    github_repo = GitHubRepository(config)
+    
+    try:
+        repo_owner, repo_name = github_repo.parse_github_url(repo_url)
+    except ValueError:
+        # If URL parsing fails, use placeholder values
+        repo_owner = "unknown"
+        repo_name = "unknown"
+        if verbose:
+            print(f"Warning: Could not parse repository URL: {repo_url}")
+    
     # Create the agent
     agent = create_repository_agent(verbose=verbose)
     
@@ -115,6 +132,8 @@ def analyze_repository(repo_url: str, verbose: bool = False) -> Dict[str, Any]:
     # Extract the result from the agent's response
     return {
         "repo_url": repo_url,
+        "repo_owner": repo_owner,
+        "repo_name": repo_name,
         "analysis": result["output"],
         "agent_result": result
     }
