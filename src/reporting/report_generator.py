@@ -239,6 +239,8 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
             elif isinstance(quality, dict):
                 if "error" in quality:
                     f.write(f"**Error:** {quality['error']}\n\n")
+                elif not quality:  # Check if dictionary is empty
+                    f.write("Repository analysis was unsuccessful or returned no data.\n\n")
                 else:
                     # Check if we have multiple repository info
                     repos_analyzed = quality.get("repositories_analyzed", 0)
@@ -379,6 +381,8 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
             elif isinstance(celo, dict):
                 if "error" in celo:
                     f.write(f"**Error:** {celo['error']}\n\n")
+                elif not celo:  # Check if dictionary is empty
+                    f.write("Repository analysis was unsuccessful or returned no data.\n\n")
                 else:
                     # Get integration status safely
                     if "integrated" in celo:

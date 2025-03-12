@@ -123,9 +123,19 @@ def export_analysis_data(
         if format.lower() == "json":
             export_path = os.path.join(output_dir, "results.json")
             
-            # Export as JSON
-            with open(export_path, "w") as f:
-                json.dump(project_results, f, indent=2)
+            # Make sure we never use template data and actually use the provided project results
+            if not project_results or len(project_results) == 0:
+                # If we somehow got empty results, create a placeholder structure
+                empty_result = {
+                    "warning": "No project analysis results were available",
+                    "timestamp": None
+                }
+                with open(export_path, "w") as f:
+                    json.dump([empty_result], f, indent=2)
+            else:
+                # Use the actual project data
+                with open(export_path, "w") as f:
+                    json.dump(project_results, f, indent=2)
                 
             return {
                 "success": True,
