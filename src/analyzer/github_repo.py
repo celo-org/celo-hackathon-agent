@@ -181,7 +181,7 @@ class GitHubRepository:
             print(f"Error counting repository contributors: {str(e)}")
             return 0
     
-    @with_timeout(30)
+    @with_timeout(60)  # Increased timeout for PR stats
     def get_pull_request_stats(self) -> Dict[str, int]:
         """
         Get pull request statistics for the repository.
@@ -198,23 +198,37 @@ class GitHubRepository:
             }
             
         try:
-            # Get open PRs
-            open_prs = self.repo.get_pulls(state='open').totalCount
+            # Get open PRs count - use totalCount which is faster than fetching all PRs
+            try:
+                open_prs = self.repo.get_pulls(state='open').totalCount
+            except Exception as e:
+                print(f"Error getting open PRs count: {str(e)}")
+                open_prs = 0
             
-            # Get closed PRs (includes merged)
-            closed_prs = self.repo.get_pulls(state='closed').totalCount
+            # Get closed PRs count
+            try:
+                closed_prs = self.repo.get_pulls(state='closed').totalCount
+            except Exception as e:
+                print(f"Error getting closed PRs count: {str(e)}")
+                closed_prs = 0
             
             # Get merged PRs (subset of closed)
             merged_prs_count = 0
             
-            # Sample up to 50 closed PRs to estimate merge percentage
-            sample_closed_prs = list(self.repo.get_pulls(state='closed')[:50])
-            
-            if sample_closed_prs:
-                merged_count = sum(1 for pr in sample_closed_prs if pr.merged)
-                # Calculate merge percentage and estimate total merged
-                merge_percentage = merged_count / len(sample_closed_prs)
-                merged_prs_count = int(closed_prs * merge_percentage)
+            # Only sample closed PRs if there are any
+            if closed_prs > 0:
+                try:
+                    # Limit the sample to max 20 to avoid timeouts
+                    sample_size = min(20, closed_prs)
+                    sample_closed_prs = list(self.repo.get_pulls(state='closed')[:sample_size])
+                    
+                    if sample_closed_prs:
+                        merged_count = sum(1 for pr in sample_closed_prs if pr.merged)
+                        # Calculate merge percentage and estimate total merged
+                        merge_percentage = merged_count / len(sample_closed_prs)
+                        merged_prs_count = int(closed_prs * merge_percentage)
+                except Exception as e:
+                    print(f"Error sampling closed PRs: {str(e)}")
             
             return {
                 "open": open_prs,
@@ -231,70 +245,11 @@ class GitHubRepository:
                 "total": 0
             }
     
-    @with_timeout(30)
-    def get_contributor_details(self, contributor_login: str) -> Dict[str, Any]:
-        """
-        Get detailed information about a contributor.
-        
-        Args:
-            contributor_login: GitHub username of the contributor
-            
-        Returns:
-            Dictionary with contributor details
-        """
-        if not self.config.github_token:
-            return {
-                "username": contributor_login,
-                "name": None,
-                "company": None,
-                "location": None,
-                "email": None,
-                "bio": None,
-                "followers": 0,
-                "following": 0,
-                "twitter_username": None,
-                "public_repos": 0,
-                "profile_url": f"https://github.com/{contributor_login}",
-            }
-            
-        try:
-            from github import Github
-            g = Github(self.config.github_token)
-            user = g.get_user(contributor_login)
-            
-            return {
-                "username": user.login,
-                "name": user.name,
-                "company": user.company,
-                "location": user.location,
-                "email": user.email,
-                "bio": user.bio,
-                "followers": user.followers,
-                "following": user.following,
-                "twitter_username": user.twitter_username,
-                "blog": user.blog,
-                "public_repos": user.public_repos,
-                "profile_url": user.html_url
-            }
-        except Exception as e:
-            print(f"Error getting contributor details for {contributor_login}: {str(e)}")
-            return {
-                "username": contributor_login,
-                "name": None,
-                "company": None,
-                "location": None,
-                "email": None,
-                "bio": None,
-                "followers": 0,
-                "following": 0,
-                "twitter_username": None,
-                "public_repos": 0,
-                "profile_url": f"https://github.com/{contributor_login}",
-            }
+# Method removed as its functionality is now in get_top_contributors_details
     
     def get_top_contributors_details(self, limit: int = 5) -> List[Dict[str, Any]]:
         """
-        Get detailed information about top contributors in parallel.
+        Get detailed information about top contributors.
         
         Args:
             limit: Number of top contributors to fetch details for
@@ -312,34 +267,58 @@ class GitHubRepository:
             if not basic_contributors:
                 return []
                 
-            # Extract usernames
-            usernames = [contributor["login"] for contributor in basic_contributors]
-            
-            # Fetch detailed information in parallel
+            # Process contributors sequentially to avoid signal errors
             detailed_contributors = []
             
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(5, len(usernames))) as executor:
-                # Create tasks for each username
-                future_to_username = {
-                    executor.submit(self.get_contributor_details, username): username 
-                    for username in usernames
-                }
-                
-                # Process results as they complete
-                for future in concurrent.futures.as_completed(future_to_username):
-                    username = future_to_username[future]
-                    try:
-                        # Get contributor details
-                        contributor_details = future.result()
-                        
-                        # Find the basic contributor info
-                        basic_info = next((c for c in basic_contributors if c["login"] == username), {})
-                        
-                        # Merge basic and detailed info
-                        merged_info = {**basic_info, **contributor_details}
-                        detailed_contributors.append(merged_info)
-                    except Exception as e:
-                        print(f"Error processing contributor {username}: {str(e)}")
+            for contributor in basic_contributors:
+                username = contributor["login"]
+                try:
+                    # Get contributor details with a longer timeout
+                    contributor_details = {}
+                    
+                    # Only try to get details if we have a GitHub token
+                    if self.config.github_token:
+                        from github import Github
+                        try:
+                            g = Github(self.config.github_token)
+                            user = g.get_user(username)
+                            
+                            contributor_details = {
+                                "username": user.login,
+                                "name": user.name,
+                                "company": user.company,
+                                "location": user.location,
+                                "email": user.email,
+                                "bio": user.bio,
+                                "followers": user.followers,
+                                "following": user.following,
+                                "twitter_username": user.twitter_username,
+                                "blog": user.blog,
+                                "public_repos": user.public_repos,
+                                "profile_url": user.html_url
+                            }
+                        except Exception as detail_error:
+                            print(f"Error getting details for {username}: {str(detail_error)}")
+                            contributor_details = {
+                                "username": username,
+                                "profile_url": f"https://github.com/{username}"
+                            }
+                    else:
+                        contributor_details = {
+                            "username": username,
+                            "profile_url": f"https://github.com/{username}"
+                        }
+                    
+                    # Find the basic contributor info
+                    basic_info = contributor
+                    
+                    # Merge basic and detailed info
+                    merged_info = {**basic_info, **contributor_details}
+                    detailed_contributors.append(merged_info)
+                except Exception as e:
+                    print(f"Error processing contributor {username}: {str(e)}")
+                    # Add basic info anyway
+                    detailed_contributors.append(contributor)
             
             # Sort by contributions
             detailed_contributors.sort(key=lambda x: x.get("contributions", 0), reverse=True)
@@ -350,7 +329,7 @@ class GitHubRepository:
             print(f"Error getting top contributors details: {str(e)}")
             return []
     
-    @with_timeout(30)
+    @with_timeout(90)  # Increased timeout for repository details
     def get_repository_details(self) -> RepoDetails:
         """
         Get repository details using GitHub API.
@@ -367,25 +346,7 @@ class GitHubRepository:
             )
         
         try:
-            # Get total contributor count
-            total_contributors = self.get_total_contributor_count()
-            
-            # Get top contributors list (limited to top 5 for display)
-            contributors = self.get_repository_contributors(limit=5)
-            
-            # Get commit statistics
-            commit_stats = self.get_repository_commit_stats()
-            
-            # Get main languages
-            languages = self.get_repository_languages()
-            
-            # Get pull request stats
-            pr_stats = self.get_pull_request_stats()
-            
-            # Get detailed information for top contributors
-            detailed_contributors = self.get_top_contributors_details(limit=5)
-            
-            # Get repository details directly
+            # Initialize with basic details
             repo_info = {
                 "name": self.repo.name,
                 "description": self.repo.description or "",
@@ -395,23 +356,81 @@ class GitHubRepository:
                 "open_issues": self.repo.open_issues_count,
                 "last_update": self.repo.updated_at.isoformat() if self.repo.updated_at else "",
                 "language": self.repo.language or "",
-                "contributors": contributors,
-                "detailed_contributors": detailed_contributors,
-                "total_contributors": total_contributors,
-                "commit_stats": commit_stats,
-                "main_languages": languages,
+                "contributors": [],
+                "detailed_contributors": [],
+                "total_contributors": 0,
+                "commit_stats": {
+                    "total_commits": 0,
+                    "first_commit_date": "",
+                    "latest_commit_date": "",
+                    "commit_frequency": 0.0,
+                    "commit_history": {}
+                },
+                "main_languages": {},
                 "license_type": self.repo.license.name if self.repo.license else None,
                 "created_at": self.repo.created_at.isoformat() if self.repo.created_at else "",
                 "size_kb": self.repo.size,
-                "pull_requests": pr_stats
+                "pull_requests": {
+                    "open": 0,
+                    "closed": 0,
+                    "merged": 0,
+                    "total": 0
+                }
             }
+            
+            # Get data in try/except blocks to ensure we get as much as possible
+            try:
+                # Get total contributor count
+                total_contributors = self.get_total_contributor_count()
+                repo_info["total_contributors"] = total_contributors
+            except Exception as e:
+                print(f"Error getting contributor count: {str(e)}")
+            
+            try:
+                # Get top contributors list (limited to top 5 for display)
+                contributors = self.get_repository_contributors(limit=5)
+                repo_info["contributors"] = contributors
+            except Exception as e:
+                print(f"Error getting contributors: {str(e)}")
+            
+            try:
+                # Get commit statistics
+                commit_stats = self.get_repository_commit_stats()
+                repo_info["commit_stats"] = commit_stats
+            except Exception as e:
+                print(f"Error getting commit stats: {str(e)}")
+            
+            try:
+                # Get main languages
+                languages = self.get_repository_languages()
+                repo_info["main_languages"] = languages
+            except Exception as e:
+                print(f"Error getting languages: {str(e)}")
+            
+            try:
+                # Get pull request stats
+                pr_stats = self.get_pull_request_stats()
+                repo_info["pull_requests"] = pr_stats
+            except Exception as e:
+                print(f"Error getting PR stats: {str(e)}")
+            
+            try:
+                # Get detailed information for top contributors
+                detailed_contributors = self.get_top_contributors_details(limit=5)
+                repo_info["detailed_contributors"] = detailed_contributors
+            except Exception as e:
+                print(f"Error getting detailed contributor info: {str(e)}")
             
             return repo_info
             
         except Exception as e:
             error_msg = f"Error getting repository details: {str(e)}"
             print(error_msg)
-            raise GitHubAccessError(error_msg)
+            return self.create_fallback_repo_details(
+                self.repo_owner, 
+                self.repo_name, 
+                f"https://github.com/{self.repo_owner}/{self.repo_name}"
+            )
     
     def collect_code_samples(self, progress_callback=None) -> Tuple[Dict[str, int], List[str]]:
         """
