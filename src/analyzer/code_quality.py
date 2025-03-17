@@ -279,6 +279,10 @@ class CodeQualityAnalyzer:
                 
             # Run analysis with direct invocation
             analysis_result = modified_llm.invoke(prompt_text).content
+            
+            # Debug output to see what's happening
+            print(f"Code quality analysis raw response length: {len(analysis_result)} characters")
+            print(f"Response begins with: {analysis_result[:100]}...")
 
             # Attempt to extract JSON from response
             # Sometimes the model returns markdown-formatted JSON with ```json tags
@@ -295,16 +299,47 @@ class CodeQualityAnalyzer:
                 if json_end > json_start:
                     analysis_result = analysis_result[json_start:json_end].strip()
 
-            # Try to parse JSON
+            # Try to parse JSON with extensive error recovery
             try:
                 analysis_json = json.loads(analysis_result)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                print(f"Initial JSON parsing failed: {str(e)}")
+                
                 # Try to clean up and fix common JSON formatting issues
                 cleaned_json = analysis_result.replace(",\n}", "\n}")  # Fix trailing commas
                 cleaned_json = cleaned_json.replace(",]", "]")  # Fix trailing commas in arrays
                 
+                # Ensure all strings use double quotes (not single quotes)
+                import re
+                try:
+                    # Replace only pairs of single quotes that contain valid text 
+                    # This regex finds text like 'example' and replaces with "example"
+                    cleaned_json = re.sub(r"'([^']*)'", r'"\1"', cleaned_json)
+                except Exception as regex_error:
+                    print(f"Error in quote replacement: {str(regex_error)}")
+                
+                # If the result doesn't start with {, try to find and extract any JSON-like content
+                if not cleaned_json.strip().startswith("{"):
+                    json_start = cleaned_json.find("{")
+                    json_end = cleaned_json.rfind("}")
+                    if json_start >= 0 and json_end > json_start:
+                        cleaned_json = cleaned_json[json_start:json_end+1]
+                
                 # Try parsing again with cleaned JSON
-                analysis_json = json.loads(cleaned_json)
+                try:
+                    analysis_json = json.loads(cleaned_json)
+                except json.JSONDecodeError as e2:
+                    print(f"JSON parsing failed after cleaning: {str(e2)}")
+                    
+                    # Create a minimal valid response as fallback
+                    analysis_json = {
+                        "readability": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                        "standards": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                        "complexity": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                        "testing": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                        "overall_analysis": "Unable to parse LLM response into valid JSON. Using fallback scores.",
+                        "suggestions": ["Fix JSON parsing to get accurate analysis"]
+                    }
 
             # Extract scores and reasoning
             readability = analysis_json.get("readability", {})

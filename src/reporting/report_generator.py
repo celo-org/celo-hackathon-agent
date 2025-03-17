@@ -1141,8 +1141,19 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
         if "analysis" in result and "deep_code_analysis" in result["analysis"]:
             deep_analysis = result["analysis"]["deep_code_analysis"]
             
-            if isinstance(deep_analysis, dict) and not deep_analysis.get("error"):
+            # Debug output to see what's in the analysis
+            print(f"Deep code analysis in report: {deep_analysis.keys() if isinstance(deep_analysis, dict) else 'not a dict'}")
+            
+            # If there's an error, show it
+            if isinstance(deep_analysis, dict) and deep_analysis.get("error"):
+                print(f"Deep code analysis error: {deep_analysis.get('error')}")
+            
+            if isinstance(deep_analysis, dict):
                 f.write("## Deep Code Analysis\n\n")
+                
+                # Make sure to dump the raw analysis details for debugging
+                if "raw_analysis" in deep_analysis and isinstance(deep_analysis["raw_analysis"], dict):
+                    print("Deep code analysis successful, raw data available")
                 
                 # Implemented Features
                 implemented_features = deep_analysis.get("implemented_features", [])

@@ -81,6 +81,10 @@ class DeepCodeAnalyzer:
                 
             # Run analysis with direct invocation
             analysis_result = modified_llm.invoke(prompt_text).content
+            
+            # Debug output to see what's happening
+            print(f"Deep code analysis raw response length: {len(analysis_result)} characters")
+            print(f"Response begins with: {analysis_result[:100]}...")
 
             # Attempt to extract JSON from response
             # Sometimes the model returns markdown-formatted JSON with ```json tags
@@ -97,17 +101,53 @@ class DeepCodeAnalyzer:
                 if json_end > json_start:
                     analysis_result = analysis_result[json_start:json_end].strip()
 
-            # Attempt to parse JSON, supporting both compact and pretty-printed formats
+            # Try to parse JSON with extensive error recovery
             try:
                 analysis_json = json.loads(analysis_result)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                print(f"Initial JSON parsing failed in deep code analysis: {str(e)}")
+                
                 # Try to clean up and fix common JSON formatting issues
-                # Remove comments, fix trailing commas, etc.
                 cleaned_json = analysis_result.replace(",\n}", "\n}")  # Fix trailing commas
                 cleaned_json = cleaned_json.replace(",]", "]")  # Fix trailing commas in arrays
                 
+                # Ensure all strings use double quotes (not single quotes)
+                import re
+                try:
+                    # Replace only pairs of single quotes that contain valid text 
+                    # This regex finds text like 'example' and replaces with "example"
+                    cleaned_json = re.sub(r"'([^']*)'", r'"\1"', cleaned_json)
+                except Exception as regex_error:
+                    print(f"Error in quote replacement: {str(regex_error)}")
+                
+                # If the result doesn't start with {, try to find and extract any JSON-like content
+                if not cleaned_json.strip().startswith("{"):
+                    json_start = cleaned_json.find("{")
+                    json_end = cleaned_json.rfind("}")
+                    if json_start >= 0 and json_end > json_start:
+                        cleaned_json = cleaned_json[json_start:json_end+1]
+                
                 # Try parsing again with cleaned JSON
-                analysis_json = json.loads(cleaned_json)
+                try:
+                    analysis_json = json.loads(cleaned_json)
+                except json.JSONDecodeError as e2:
+                    print(f"JSON parsing failed after cleaning in deep code analysis: {str(e2)}")
+                    
+                    # Create a minimal valid response as fallback
+                    analysis_json = {
+                        "codebase_breakdown": {
+                            "structure": "Unable to parse LLM response",
+                            "components": ["Component analysis failed"],
+                            "interactions": "Analysis failed due to JSON parsing error",
+                            "code_organization": "See error details in log"
+                        },
+                        "implemented_features": ["Feature analysis unavailable due to parsing error"],
+                        "missing_features": ["Missing feature analysis unavailable"],
+                        "frameworks": ["Framework detection unavailable"],
+                        "technologies": ["Technology detection unavailable"],
+                        "architecture_patterns": ["Architecture pattern detection unavailable"],
+                        "additional_insights": "JSON parsing failed. Please check logs for details."
+                    }
             
             # Ensure we have all expected fields
             codebase_breakdown = analysis_json.get("codebase_breakdown", {})
