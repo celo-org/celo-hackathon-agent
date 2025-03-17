@@ -237,6 +237,119 @@ def generate_summary_report(results: List[Dict[str, Any]], output_path: str):
         f.write("For detailed information on each project, please refer to the individual project reports.")
 
 
+def extract_technology_highlights(result: Dict[str, Any]) -> List[str]:
+    """
+    Extract technology highlights from repository data and code quality analysis.
+    
+    Args:
+        result: Project analysis results
+        
+    Returns:
+        List of technology highlights
+    """
+    highlights = []
+    
+    # Check if we have repo details
+    if "analysis" not in result or "repo_details" not in result["analysis"]:
+        return highlights
+    
+    repo_details = result["analysis"]["repo_details"]
+    if not repo_details:
+        return highlights
+    
+    # Get language information
+    languages = {}
+    if isinstance(repo_details, list):
+        # Combine languages from all repos
+        for repo in repo_details:
+            for lang, pct in repo.get('main_languages', {}).items():
+                if lang in languages:
+                    languages[lang] += pct
+                else:
+                    languages[lang] = pct
+    elif isinstance(repo_details, dict):
+        languages = repo_details.get('main_languages', {})
+    
+    # Add primary languages as highlights
+    for lang, pct in languages.items():
+        if lang.lower() in ['javascript', 'typescript', 'python', 'java', 'rust', 'solidity', 'go']:
+            if lang.lower() == 'javascript':
+                highlights.append(f"Language: {lang}")
+            elif lang.lower() == 'typescript':
+                highlights.append(f"Language: {lang}")
+            elif lang.lower() == 'python':
+                highlights.append(f"Language: {lang}")
+            elif lang.lower() == 'solidity':
+                highlights.append(f"Smart Contracts: Solidity")
+            else:
+                highlights.append(f"Language: {lang}")
+    
+    # Check for Celo integration
+    if "celo_integration" in result.get("analysis", {}):
+        celo_integration = result["analysis"]["celo_integration"]
+        if isinstance(celo_integration, dict) and celo_integration.get("integrated", False):
+            highlights.append("Blockchain Network: Celo")
+    
+    # Get potential technologies from code quality analysis
+    code_quality = result.get("analysis", {}).get("code_quality", {})
+    ai_analysis = code_quality.get("ai_analysis", {})
+    
+    # Extract from overall analysis if available
+    overall_analysis = ai_analysis.get("overall_analysis", "")
+    
+    # Check for specific technologies in the analysis text
+    tech_keywords = {
+        "react": "Frontend: React",
+        "next.js": "Frontend: Next.js",
+        "vue": "Frontend: Vue.js",
+        "angular": "Frontend: Angular",
+        "express": "Backend: Express.js",
+        "node.js": "Backend: Node.js",
+        "flask": "Backend: Flask",
+        "django": "Backend: Django",
+        "fastapi": "Backend: FastAPI",
+        "mongodb": "Database: MongoDB",
+        "postgres": "Database: PostgreSQL",
+        "mysql": "Database: MySQL",
+        "sqlite": "Database: SQLite",
+        "redis": "Database: Redis",
+        "prisma": "ORM: Prisma",
+        "typeorm": "ORM: TypeORM",
+        "sequelize": "ORM: Sequelize",
+        "graphql": "API: GraphQL",
+        "rest api": "API: REST",
+        "docker": "DevOps: Docker",
+        "kubernetes": "DevOps: Kubernetes",
+        "aws": "Cloud: AWS",
+        "azure": "Cloud: Azure",
+        "google cloud": "Cloud: Google Cloud",
+        "metamask": "Wallet Integration: MetaMask",
+        "wallet connect": "Wallet Integration: WalletConnect",
+        "privy": "Wallet Integration: Privy",
+        "web3.js": "Web3 Library: web3.js",
+        "ethers.js": "Web3 Library: ethers.js",
+        "hardhat": "Development: Hardhat",
+        "truffle": "Development: Truffle",
+        "foundry": "Development: Foundry",
+        "tailwind": "UI: Tailwind CSS",
+        "bootstrap": "UI: Bootstrap",
+        "material ui": "UI: Material UI",
+        "chakra ui": "UI: Chakra UI",
+        "shadcn/ui": "UI: shadcn/ui",
+        "styled-components": "UI: styled-components",
+    }
+    
+    # Create search text combining project description and analysis
+    search_text = (result.get("project_description", "") + " " + overall_analysis).lower()
+    
+    # Add matching technologies
+    for keyword, tech_desc in tech_keywords.items():
+        if keyword in search_text and tech_desc not in highlights:
+            highlights.append(tech_desc)
+    
+    # Return unique highlights
+    return list(set(highlights))
+
 def generate_project_report(result: Dict[str, Any], output_path: str):
     """
     Generate a detailed report for a single project.
@@ -287,13 +400,21 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
             # Fallback to original format
             f.write(f"**GitHub URL:** [{result['project_github_url']}]({result['project_github_url']})\n\n")
 
+        # Extract and display technology highlights
+        tech_highlights = extract_technology_highlights(result)
+        if tech_highlights:
+            f.write("## Technical Highlights\n\n")
+            for highlight in tech_highlights:
+                f.write(f"- **{highlight}**\n")
+            f.write("\n")
+
         # Repository details - handle multiple repositories
         if "analysis" in result and "repo_details" in result["analysis"]:
             repo_details = result["analysis"]["repo_details"]
             
             # Check if we have multiple repositories
             if isinstance(repo_details, list) and len(repo_details) > 0:
-                f.write("### Repository Statistics\n\n")
+                f.write("## Repository Statistics\n\n")
                 
                 if len(repo_details) == 1:
                     # Single repository - show simple stats
@@ -311,6 +432,15 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                     f.write(f"- **Forks:** {repo.get('forks', 0)}\n")
                     f.write(f"- **Open Issues:** {repo.get('open_issues', 0)}\n")
                     f.write(f"- **Total Contributors:** {repo.get('total_contributors', 0)}\n")
+                    
+                    # Add PR stats if available
+                    pr_stats = repo.get('pull_requests', {})
+                    if pr_stats:
+                        f.write("\n### Pull Request Statistics\n\n")
+                        f.write(f"- **Open PRs:** {pr_stats.get('open', 0)}\n")
+                        f.write(f"- **Closed PRs:** {pr_stats.get('closed', 0)}\n")
+                        f.write(f"- **Merged PRs:** {pr_stats.get('merged', 0)}\n")
+                        f.write(f"- **Total PRs:** {pr_stats.get('total', 0)}\n\n")
                     
                     # Commit Statistics
                     commit_stats = repo.get('commit_stats', {})
@@ -346,11 +476,54 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                         
                         f.write("```\n\n")
                     
-                    # Repository Contributors
-                    contributors = repo.get('contributors', [])
-                    total_contributors = repo.get('total_contributors', len(contributors))
+                    # Top Contributors Details (with enhanced information)
+                    detailed_contributors = repo.get('detailed_contributors', [])
+                    if detailed_contributors:
+                        num_contributors = min(5, len(detailed_contributors))
+                        f.write(f"## Top {num_contributors} Contributors\n\n")
+                        
+                        # Display each contributor's details in a more comprehensive format
+                        for i, contributor in enumerate(detailed_contributors[:num_contributors]):
+                            username = contributor.get('username', 'N/A')
+                            name = contributor.get('name', 'N/A')
+                            if name == None: 
+                                name = username
+                            
+                            f.write(f"### {i+1}. {name} (@{username})\n\n")
+                            
+                            # Basic info
+                            profile_url = contributor.get('profile_url', '#')
+                            contributions = contributor.get('contributions', 0)
+                            f.write(f"- **GitHub:** [{username}]({profile_url})\n")
+                            f.write(f"- **Contributions:** {contributions}\n")
+                            
+                            # Additional info if available
+                            if contributor.get('company'):
+                                f.write(f"- **Company:** {contributor.get('company')}\n")
+                            if contributor.get('location'):
+                                f.write(f"- **Location:** {contributor.get('location')}\n")
+                            if contributor.get('twitter_username'):
+                                twitter = contributor.get('twitter_username')
+                                f.write(f"- **Twitter:** [@{twitter}](https://twitter.com/{twitter})\n")
+                            if contributor.get('blog'):
+                                blog = contributor.get('blog')
+                                if not blog.startswith(('http://', 'https://')):
+                                    blog = 'https://' + blog
+                                f.write(f"- **Website:** [{blog}]({blog})\n")
+                            if contributor.get('bio'):
+                                f.write(f"- **Bio:** {contributor.get('bio')}\n")
+                            
+                            # Activity stats
+                            f.write(f"- **Followers:** {contributor.get('followers', 0)}\n")
+                            f.write(f"- **Following:** {contributor.get('following', 0)}\n")
+                            f.write(f"- **Public Repositories:** {contributor.get('public_repos', 0)}\n")
+                            f.write("\n")
                     
-                    if contributors:
+                    # Repository Contributors (fallback to old format if no detailed info)
+                    elif repo.get('contributors', []):
+                        contributors = repo.get('contributors', [])
+                        total_contributors = repo.get('total_contributors', len(contributors))
+                        
                         # Determine if we're showing all or just top contributors
                         if total_contributors > len(contributors):
                             f.write(f"### Top {len(contributors)} Contributors (of {total_contributors} total)\n\n")
@@ -382,6 +555,22 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                     f.write(f"- **Latest Commit:** {format_date(project_totals['latest_commit'])}\n")
                     f.write(f"- **Avg. Commit Frequency:** {round(project_totals['commit_frequency'], 2)} commits/week\n\n")
                     
+                    # Combine PR stats across repos
+                    total_prs = {"open": 0, "closed": 0, "merged": 0, "total": 0}
+                    for repo in repo_details:
+                        pr_stats = repo.get('pull_requests', {})
+                        total_prs["open"] += pr_stats.get('open', 0)
+                        total_prs["closed"] += pr_stats.get('closed', 0)
+                        total_prs["merged"] += pr_stats.get('merged', 0)
+                        total_prs["total"] += pr_stats.get('total', 0)
+                    
+                    if total_prs["total"] > 0:
+                        f.write("### Pull Request Statistics\n\n")
+                        f.write(f"- **Open PRs:** {total_prs['open']}\n")
+                        f.write(f"- **Closed PRs:** {total_prs['closed']}\n")
+                        f.write(f"- **Merged PRs:** {total_prs['merged']}\n")
+                        f.write(f"- **Total PRs:** {total_prs['total']}\n\n")
+                    
                     # Language distribution
                     languages = project_totals['languages']
                     if languages:
@@ -408,6 +597,41 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                         f.write(f"| {repo_name} | {stars} | {forks} | {issues} | {contributors} | {commits} | {created} | {last_update} |\n")
                     f.write("\n")
                     
+                    # Collect all detailed contributors across repositories
+                    all_detailed_contributors = []
+                    for repo in repo_details:
+                        detailed_contributors = repo.get('detailed_contributors', [])
+                        if detailed_contributors:
+                            all_detailed_contributors.extend(detailed_contributors)
+                    
+                    # If we have detailed contributors, display top 5
+                    if all_detailed_contributors:
+                        # Sort by contributions and take top 5
+                        all_detailed_contributors.sort(key=lambda x: x.get('contributions', 0), reverse=True)
+                        top_contributors = all_detailed_contributors[:5]
+                        
+                        # Display each contributor's details
+                        f.write(f"## Top {len(top_contributors)} Contributors\n\n")
+                        
+                        # Create a markdown table for the contributors
+                        f.write("| Contributor | GitHub | Contributions | Company | Location | Twitter |\n")
+                        f.write("|-------------|--------|---------------|---------|----------|--------|\n")
+                        
+                        for contributor in top_contributors:
+                            username = contributor.get('username', 'N/A')
+                            name = contributor.get('name') or username
+                            profile_url = contributor.get('profile_url', '#')
+                            contributions = contributor.get('contributions', 0)
+                            company = contributor.get('company', 'N/A')
+                            location = contributor.get('location', 'N/A')
+                            
+                            twitter = contributor.get('twitter_username', '')
+                            twitter_cell = f"[@{twitter}](https://twitter.com/{twitter})" if twitter else "N/A"
+                            
+                            f.write(f"| {name} | [{username}]({profile_url}) | {contributions} | {company} | {location} | {twitter_cell} |\n")
+                        
+                        f.write("\n")
+                    
                     # Per-repository details
                     for i, repo in enumerate(repo_details):
                         repo_name = repo.get('name', 'N/A')
@@ -421,6 +645,15 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                         f.write(f"- **Stars:** {repo.get('stars', 0)}\n")
                         f.write(f"- **Forks:** {repo.get('forks', 0)}\n")
                         f.write(f"- **Open Issues:** {repo.get('open_issues', 0)}\n\n")
+                        
+                        # PR Stats
+                        pr_stats = repo.get('pull_requests', {})
+                        if pr_stats and pr_stats.get('total', 0) > 0:
+                            f.write("#### Pull Request Statistics\n\n")
+                            f.write(f"- **Open PRs:** {pr_stats.get('open', 0)}\n")
+                            f.write(f"- **Closed PRs:** {pr_stats.get('closed', 0)}\n")
+                            f.write(f"- **Merged PRs:** {pr_stats.get('merged', 0)}\n")
+                            f.write(f"- **Total PRs:** {pr_stats.get('total', 0)}\n\n")
                         
                         # Language distribution
                         languages = repo.get('main_languages', {})
@@ -491,13 +724,61 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                 f.write(f"- **Primary Language:** {repo_details.get('language', 'N/A')}\n")
                 f.write(f"- **Last Updated:** {format_date(repo_details.get('last_update', 'N/A'))}\n")
                 
+                # Add PR stats if available
+                pr_stats = repo_details.get('pull_requests', {})
+                if pr_stats:
+                    f.write("\n### Pull Request Statistics\n\n")
+                    f.write(f"- **Open PRs:** {pr_stats.get('open', 0)}\n")
+                    f.write(f"- **Closed PRs:** {pr_stats.get('closed', 0)}\n")
+                    f.write(f"- **Merged PRs:** {pr_stats.get('merged', 0)}\n")
+                    f.write(f"- **Total PRs:** {pr_stats.get('total', 0)}\n\n")
+                
                 # Add contributor info if available
                 if 'contributors' in repo_details:
                     total_contributors = repo_details.get('total_contributors', len(repo_details['contributors']))
                     f.write(f"- **Total Contributors:** {total_contributors}\n\n")
                     
-                    if repo_details['contributors']:
-                        # Determine if we're showing all or just top contributors
+                    # Check if we have detailed contributor information
+                    detailed_contributors = repo_details.get('detailed_contributors', [])
+                    if detailed_contributors:
+                        num_contributors = min(5, len(detailed_contributors))
+                        f.write(f"## Top {num_contributors} Contributors\n\n")
+                        
+                        for i, contributor in enumerate(detailed_contributors[:num_contributors]):
+                            username = contributor.get('username', 'N/A')
+                            name = contributor.get('name') or username
+                            
+                            f.write(f"### {i+1}. {name} (@{username})\n\n")
+                            
+                            # Basic info
+                            profile_url = contributor.get('profile_url', '#')
+                            contributions = contributor.get('contributions', 0)
+                            f.write(f"- **GitHub:** [{username}]({profile_url})\n")
+                            f.write(f"- **Contributions:** {contributions}\n")
+                            
+                            # Additional info if available
+                            if contributor.get('company'):
+                                f.write(f"- **Company:** {contributor.get('company')}\n")
+                            if contributor.get('location'):
+                                f.write(f"- **Location:** {contributor.get('location')}\n")
+                            if contributor.get('twitter_username'):
+                                twitter = contributor.get('twitter_username')
+                                f.write(f"- **Twitter:** [@{twitter}](https://twitter.com/{twitter})\n")
+                            if contributor.get('blog'):
+                                blog = contributor.get('blog')
+                                if not blog.startswith(('http://', 'https://')):
+                                    blog = 'https://' + blog
+                                f.write(f"- **Website:** [{blog}]({blog})\n")
+                            if contributor.get('bio'):
+                                f.write(f"- **Bio:** {contributor.get('bio')}\n")
+                            
+                            # Activity stats
+                            f.write(f"- **Followers:** {contributor.get('followers', 0)}\n")
+                            f.write(f"- **Following:** {contributor.get('following', 0)}\n")
+                            f.write(f"- **Public Repositories:** {contributor.get('public_repos', 0)}\n")
+                            f.write("\n")
+                    elif repo_details['contributors']:
+                        # Use old contributor format if no detailed info
                         if total_contributors > len(repo_details['contributors']):
                             f.write(f"### Top {len(repo_details['contributors'])} Contributors (of {total_contributors} total)\n\n")
                         else:
@@ -718,6 +999,143 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
             f.write(
                 "Could not assess Celo integration due to an error or inaccessible repository.\n\n"
             )
+
+        # Expert Review Section
+        f.write("## Expert Review\n\n")
+        
+        # Determine the project strengths and concerns
+        strengths = []
+        concerns = []
+        
+        # Add repository-related strengths/concerns
+        if "analysis" in result and "repo_details" in result["analysis"]:
+            repo_details = result["analysis"]["repo_details"]
+            
+            # Process all repos or single repo
+            repos_to_process = []
+            if isinstance(repo_details, list):
+                repos_to_process = repo_details
+            elif isinstance(repo_details, dict):
+                repos_to_process = [repo_details]
+            
+            # Evaluate metrics
+            for repo in repos_to_process:
+                # Check for active development
+                commit_stats = repo.get('commit_stats', {})
+                latest_commit = commit_stats.get('latest_commit_date', '')
+                
+                if latest_commit:
+                    from datetime import datetime, timezone
+                    try:
+                        commit_date = datetime.fromisoformat(latest_commit.replace('Z', '+00:00'))
+                        now = datetime.now(timezone.utc)
+                        days_since_commit = (now - commit_date).days
+                        
+                        if days_since_commit < 30:
+                            strengths.append("Active development with recent commits")
+                        elif days_since_commit > 180:
+                            concerns.append(f"Limited recent activity (last commit was {days_since_commit} days ago)")
+                    except:
+                        pass
+                
+                # Check for test files
+                if "metrics" in result.get("analysis", {}).get("code_quality", {}):
+                    metrics = result["analysis"]["code_quality"]["metrics"]
+                    test_files = metrics.get("test_file_count", 0)
+                    total_files = metrics.get("file_count", 0)
+                    
+                    if test_files > 0 and total_files > 0:
+                        test_ratio = test_files / total_files
+                        if test_ratio > 0.1:
+                            strengths.append("Good test coverage")
+                        elif test_ratio < 0.05 and total_files > 10:
+                            concerns.append("Limited test coverage")
+                
+                # Check for documentation
+                doc_files = repo.get("metrics", {}).get("doc_file_count", 0)
+                if doc_files > 3:
+                    strengths.append("Well-documented codebase")
+                
+                # Check contributor metrics
+                contributors = repo.get("total_contributors", 0)
+                if contributors > 5:
+                    strengths.append("Strong contributor community")
+                elif contributors == 1 and repo.get("stars", 0) > 0:
+                    concerns.append("Single-contributor project")
+        
+        # Add code quality related strengths/concerns
+        if "analysis" in result and "code_quality" in result["analysis"]:
+            quality = result["analysis"]["code_quality"]
+            
+            if isinstance(quality, dict):
+                score = quality.get("overall_score", 0)
+                
+                if isinstance(score, (int, float)):
+                    if score > 80:
+                        strengths.append("High code quality score")
+                    elif score < 50:
+                        concerns.append("Code quality issues identified")
+                
+                # Check specific areas
+                readability = quality.get("readability", 0)
+                standards = quality.get("standards", 0)
+                complexity = quality.get("complexity", 0)
+                testing = quality.get("testing", 0)
+                
+                if isinstance(readability, (int, float)) and readability > 80:
+                    strengths.append("Excellent code readability and documentation")
+                
+                if isinstance(standards, (int, float)) and standards > 80:
+                    strengths.append("Strong adherence to coding standards")
+                
+                if isinstance(complexity, (int, float)) and complexity < 50:
+                    concerns.append("Complex code structure that may be difficult to maintain")
+                
+                if isinstance(testing, (int, float)) and testing < 40:
+                    concerns.append("Insufficient testing infrastructure")
+        
+        # Add Celo integration related strengths/concerns
+        if "analysis" in result and "celo_integration" in result["analysis"]:
+            celo = result["analysis"]["celo_integration"]
+            
+            if isinstance(celo, dict) and celo.get("integrated", False):
+                strengths.append("Confirmed Celo blockchain integration")
+                
+                # Check evidence count
+                evidence = celo.get("evidence", [])
+                if len(evidence) > 5:
+                    strengths.append("Comprehensive Celo integration across multiple files")
+        
+        # Extract technology highlights
+        tech_highlights = extract_technology_highlights(result)
+        if tech_highlights:
+            # Add technology related strengths
+            if any("Frontend:" in tech for tech in tech_highlights):
+                strengths.append("Complete frontend implementation")
+            
+            if any("Database:" in tech for tech in tech_highlights):
+                strengths.append("Database integration for data persistence")
+            
+            if any("Wallet Integration:" in tech for tech in tech_highlights):
+                strengths.append("Wallet connectivity for blockchain interaction")
+        
+        # Write strengths
+        if strengths:
+            f.write("### Positive Factors\n\n")
+            for strength in strengths:
+                f.write(f"- {strength}\n")
+            f.write("\n")
+        
+        # Write concerns
+        if concerns:
+            f.write("### Areas for Improvement\n\n")
+            for concern in concerns:
+                f.write(f"- {concern}\n")
+            f.write("\n")
+        
+        # If no strengths or concerns were identified
+        if not strengths and not concerns:
+            f.write("Insufficient data for a detailed expert review. More repository activity and code samples would help provide a more comprehensive analysis.\n\n")
 
         # Additional Notes
         f.write("## Additional Notes\n\n")
