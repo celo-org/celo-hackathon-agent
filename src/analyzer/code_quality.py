@@ -1,23 +1,17 @@
 """
-Code quality analysis functionality.
+Code quality analysis functionality using a question-based approach.
 """
 
-import json
 import re
-from typing import Dict, List, Tuple, Any, Optional
-
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_anthropic import ChatAnthropic
-from langchain_core.output_parsers import StrOutputParser
+from typing import Dict, List, Any, Optional
 
 from src.models.types import CodeQualityResult, CodeQualityMetrics
 from src.models.config import Config
 from src.utils.timeout import AIAnalysisError, with_timeout, TimeoutError
-from prompts.code_quality import CODE_QUALITY_PROMPT, HUMAN_CODE_QUALITY_PROMPT
 
 
 class CodeQualityAnalyzer:
-    """Analyzes code quality using AI and heuristics."""
+    """Analyzes code quality using AI and heuristics with direct questions."""
 
     def __init__(self, config: Config, llm=None):
         """
@@ -72,62 +66,71 @@ class CodeQualityAnalyzer:
             CodeQualityResult with AI-based quality estimation
         """
         try:
-            # Create direct prompt text
-            prompt_text = f"""You are a senior software engineer tasked with making a rough estimate of a GitHub repository's code quality.
-            Based on the limited information provided about the repository (name, organization, description), 
-            provide a reasonable estimate of what the code quality might be like.
-            
-            Repository: {repo_owner}/{repo_name}
-            Description: {repo_description}
-            
-            I don't have direct access to the code, so please make an educated guess based on the repository name,
-            owner, and any other information you might know about this project. If you've heard of this repository
-            before, you can use that knowledge.
-            
-            Respond in JSON format:
-            {{
-                "readability": {{"score": 0-100, "reasoning": "explanation"}},
-                "standards": {{"score": 0-100, "reasoning": "explanation"}},
-                "complexity": {{"score": 0-100, "reasoning": "explanation"}},
-                "testing": {{"score": 0-100, "reasoning": "explanation"}},
-                "overall_analysis": "brief overall analysis",
-                "suggestions": ["suggestion1", "suggestion2"]
-            }}
-            """
-
             # Use direct LLM invocation with lower temperature
             modified_llm = self.llm
             if hasattr(self.llm, 'temperature'):
                 modified_llm = self.llm.with_config(temperature=0.1)
-                
-            analysis_result = modified_llm.invoke(prompt_text).content
             
-            # Parse the response with error handling
-            analysis_json = self._extract_json_from_llm_response(analysis_result)
-
-            # Extract scores and reasoning from AI response
-            readability = analysis_json.get("readability", {})
-            standards = analysis_json.get("standards", {})
-            complexity = analysis_json.get("complexity", {})
-            testing = analysis_json.get("testing", {})
-
-            readability_score = (
-                readability.get("score", 0) if isinstance(readability, dict) else 0
-            )
-            standards_score = (
-                standards.get("score", 0) if isinstance(standards, dict) else 0
-            )
-            complexity_score = (
-                complexity.get("score", 0) if isinstance(complexity, dict) else 0
-            )
-            testing_score = testing.get("score", 0) if isinstance(testing, dict) else 0
-
+            # Create a dictionary to store our analysis results
+            analysis_results = {}
+            
+            # List of aspects to analyze
+            analysis_aspects = [
+                {
+                    "aspect": "readability",
+                    "question": f"Rate the likely code readability and documentation quality of the GitHub repository {repo_owner}/{repo_name} with description '{repo_description}' on a scale of 0-100. Explain your reasoning."
+                },
+                {
+                    "aspect": "standards",
+                    "question": f"Rate the likely adherence to coding standards and best practices of the GitHub repository {repo_owner}/{repo_name} with description '{repo_description}' on a scale of 0-100. Explain your reasoning."
+                },
+                {
+                    "aspect": "complexity",
+                    "question": f"Rate the likely algorithmic complexity and efficiency of the GitHub repository {repo_owner}/{repo_name} with description '{repo_description}' on a scale of 0-100. Explain your reasoning."
+                },
+                {
+                    "aspect": "testing",
+                    "question": f"Rate the likely testing approach and test coverage of the GitHub repository {repo_owner}/{repo_name} with description '{repo_description}' on a scale of 0-100. Explain your reasoning."
+                },
+                {
+                    "aspect": "overall_analysis",
+                    "question": f"Provide a brief overall analysis of the likely code quality of the GitHub repository {repo_owner}/{repo_name} with description '{repo_description}'."
+                },
+                {
+                    "aspect": "suggestions",
+                    "question": f"Suggest improvements that might benefit the GitHub repository {repo_owner}/{repo_name} with description '{repo_description}'."
+                }
+            ]
+            
+            # Ask questions for each aspect
+            for aspect_info in analysis_aspects:
+                aspect = aspect_info["aspect"]
+                question = aspect_info["question"]
+                
+                # Get response from LLM
+                response = modified_llm.invoke(question).content
+                
+                # Parse the response
+                if aspect in ["readability", "standards", "complexity", "testing"]:
+                    score, reasoning = self._extract_score_and_reasoning(response)
+                    analysis_results[aspect] = {"score": score, "reasoning": reasoning}
+                elif aspect == "overall_analysis":
+                    analysis_results[aspect] = response.strip()
+                elif aspect == "suggestions":
+                    analysis_results[aspect] = self._extract_suggestions(response)
+            
             # Calculate weighted score
+            readability_score = analysis_results.get("readability", {}).get("score", 0)
+            standards_score = analysis_results.get("standards", {}).get("score", 0)
+            complexity_score = analysis_results.get("complexity", {}).get("score", 0) 
+            testing_score = analysis_results.get("testing", {}).get("score", 0)
+            
+            # Calculate weighted score based on weights in config
             overall_score = self.calculate_weighted_score(
                 readability_score, standards_score, complexity_score, testing_score
             )
 
-            # Compile and return the results
+            # Return formatted result
             return {
                 "overall_score": round(overall_score, 2),
                 "readability": readability_score,
@@ -135,13 +138,13 @@ class CodeQualityAnalyzer:
                 "complexity": complexity_score,
                 "testing": testing_score,
                 "ai_analysis": {
-                    "overall_analysis": analysis_json.get("overall_analysis", "")
+                    "overall_analysis": analysis_results.get("overall_analysis", "")
                     + " (Note: This is an estimate based on limited information)",
-                    "suggestions": analysis_json.get("suggestions", []),
-                    "readability_reasoning": readability.get("reasoning", ""),
-                    "standards_reasoning": standards.get("reasoning", ""),
-                    "complexity_reasoning": complexity.get("reasoning", ""),
-                    "testing_reasoning": testing.get("reasoning", ""),
+                    "suggestions": analysis_results.get("suggestions", []),
+                    "readability_reasoning": analysis_results.get("readability", {}).get("reasoning", ""),
+                    "standards_reasoning": analysis_results.get("standards", {}).get("reasoning", ""),
+                    "complexity_reasoning": analysis_results.get("complexity", {}).get("reasoning", ""),
+                    "testing_reasoning": analysis_results.get("testing", {}).get("reasoning", ""),
                 },
                 "metrics": {
                     "file_count": 0,
@@ -222,7 +225,7 @@ class CodeQualityAnalyzer:
             "note": "This is a basic estimate based on repository metadata, as direct repository access was not available.",
         }
 
-    @with_timeout(60)
+    @with_timeout(90)  # Increased timeout for more thorough analysis
     def analyze_code_samples(
         self, code_samples: List[str], file_metrics: CodeQualityMetrics
     ) -> CodeQualityResult:
@@ -250,7 +253,7 @@ class CodeQualityAnalyzer:
         self, code_samples: List[str], file_metrics: CodeQualityMetrics
     ) -> CodeQualityResult:
         """
-        Analyze code quality using AI.
+        Analyze code quality using AI with direct questions.
 
         Args:
             code_samples: List of code samples
@@ -261,51 +264,76 @@ class CodeQualityAnalyzer:
         """
         # Combine code samples for analysis
         code_sample_text = "\n".join(code_samples)
-
-        # Create prompt for code quality analysis
-        try:
-            # Create a direct prompt that doesn't rely on template formatting
-            prompt_text = CODE_QUALITY_PROMPT + "\n\n" + "Analyze the following code samples:\n\n" + code_sample_text + "\n\nProvide your quality assessment in JSON format."
+        code_intro = f"Analyze the following code samples from a repository:\n\n{code_sample_text[:1000]}...\n(truncated for brevity)"
             
-            # Use direct LLM invocation to minimize potential errors
+        try:
+            # Use direct LLM invocation with lower temperature
             modified_llm = self.llm
             if hasattr(self.llm, 'temperature'):
-                # Use a lower temperature for more consistent results
                 modified_llm = self.llm.with_config(temperature=0.1)
                 
-            # Run analysis with direct invocation
-            analysis_result = modified_llm.invoke(prompt_text).content
+            # Dictionary to store analysis results
+            analysis_results = {}
             
-            # Debug output to see what's happening
-            print(f"Code quality analysis raw response length: {len(analysis_result)} characters")
-            print(f"Response begins with: {analysis_result[:100]}...")
-
-            # Extract and parse JSON
-            analysis_json = self._extract_json_from_llm_response(analysis_result)
-
-            # Extract scores and reasoning
-            readability = analysis_json.get("readability", {})
-            standards = analysis_json.get("standards", {})
-            complexity = analysis_json.get("complexity", {})
-            testing = analysis_json.get("testing", {})
-
-            readability_score = (
-                readability.get("score", 0) if isinstance(readability, dict) else 0
-            )
-            standards_score = (
-                standards.get("score", 0) if isinstance(standards, dict) else 0
-            )
-            complexity_score = (
-                complexity.get("score", 0) if isinstance(complexity, dict) else 0
-            )
-            testing_score = testing.get("score", 0) if isinstance(testing, dict) else 0
-
+            # Define the analysis questions for each aspect
+            analysis_aspects = [
+                {
+                    "aspect": "readability",
+                    "question": f"{code_intro}\n\nRate the code readability and documentation quality on a scale of 0-100. Explain your reasoning in detail."
+                },
+                {
+                    "aspect": "standards",
+                    "question": f"{code_intro}\n\nRate the adherence to coding standards and best practices on a scale of 0-100. Explain your reasoning in detail."
+                },
+                {
+                    "aspect": "complexity",
+                    "question": f"{code_intro}\n\nRate the algorithmic complexity and efficiency on a scale of 0-100. Explain your reasoning in detail."
+                },
+                {
+                    "aspect": "testing",
+                    "question": f"{code_intro}\n\nRate the testing approach and test coverage on a scale of 0-100. Explain your reasoning in detail."
+                },
+                {
+                    "aspect": "overall_analysis",
+                    "question": f"{code_intro}\n\nProvide a brief overall analysis of the code quality."
+                },
+                {
+                    "aspect": "suggestions",
+                    "question": f"{code_intro}\n\nList specific suggestions for improving the code quality, one suggestion per line starting with a dash (-)."
+                }
+            ]
+            
+            # Ask questions for each aspect
+            for aspect_info in analysis_aspects:
+                aspect = aspect_info["aspect"]
+                question = aspect_info["question"]
+                
+                print(f"Analyzing code quality: {aspect}...")
+                
+                # Get response from LLM
+                response = modified_llm.invoke(question).content
+                
+                # Parse the response
+                if aspect in ["readability", "standards", "complexity", "testing"]:
+                    score, reasoning = self._extract_score_and_reasoning(response)
+                    analysis_results[aspect] = {"score": score, "reasoning": reasoning}
+                elif aspect == "overall_analysis":
+                    analysis_results[aspect] = response.strip()
+                elif aspect == "suggestions":
+                    analysis_results[aspect] = self._extract_suggestions(response)
+            
+            # Extract scores
+            readability_score = analysis_results.get("readability", {}).get("score", 0)
+            standards_score = analysis_results.get("standards", {}).get("score", 0)
+            complexity_score = analysis_results.get("complexity", {}).get("score", 0) 
+            testing_score = analysis_results.get("testing", {}).get("score", 0)
+            
             # Calculate weighted score
             overall_score = self.calculate_weighted_score(
                 readability_score, standards_score, complexity_score, testing_score
             )
-
-            # Compile and return the results
+                
+            # Return complete result
             return {
                 "overall_score": round(overall_score, 2),
                 "readability": readability_score,
@@ -313,18 +341,16 @@ class CodeQualityAnalyzer:
                 "complexity": complexity_score,
                 "testing": testing_score,
                 "ai_analysis": {
-                    "overall_analysis": analysis_json.get("overall_analysis", ""),
-                    "suggestions": analysis_json.get("suggestions", []),
-                    "readability_reasoning": readability.get("reasoning", ""),
-                    "standards_reasoning": standards.get("reasoning", ""),
-                    "complexity_reasoning": complexity.get("reasoning", ""),
-                    "testing_reasoning": testing.get("reasoning", ""),
+                    "overall_analysis": analysis_results.get("overall_analysis", ""),
+                    "suggestions": analysis_results.get("suggestions", []),
+                    "readability_reasoning": analysis_results.get("readability", {}).get("reasoning", ""),
+                    "standards_reasoning": analysis_results.get("standards", {}).get("reasoning", ""),
+                    "complexity_reasoning": analysis_results.get("complexity", {}).get("reasoning", ""),
+                    "testing_reasoning": analysis_results.get("testing", {}).get("reasoning", ""),
                 },
                 "metrics": file_metrics,
                 "repositories_analyzed": 1,
             }
-        except json.JSONDecodeError as e:
-            raise AIAnalysisError(f"Error parsing AI response: {str(e)}")
         except Exception as e:
             raise AIAnalysisError(f"Error in AI analysis: {str(e)}")
 
@@ -453,71 +479,95 @@ class CodeQualityAnalyzer:
 
         return result
         
-    def _extract_json_from_llm_response(self, text: str) -> Dict[str, Any]:
+    def _extract_score_and_reasoning(self, response: str) -> tuple:
         """
-        Extract valid JSON from LLM response text with improved error handling.
+        Extract a numeric score and reasoning from a response.
         
         Args:
-            text: Raw text from LLM
+            response: The LLM response text
             
         Returns:
-            Parsed JSON object
+            Tuple of (score, reasoning)
         """
-        # First, try to find and extract a JSON object from the response
-        json_patterns = [
-            # Look for content between JSON code blocks
-            r'```(?:json)?\s*(\{[\s\S]*?\})\s*```',
-            # Look for content between JSON tags
-            r'<json>\s*(\{[\s\S]*?\})\s*</json>',
-            # Look for content between brackets (full response)
-            r'^(?:\s*)\{[\s\S]*\}(?:\s*)$',
-            # Look for just the first JSON object in the response
-            r'(\{[\s\S]*?\})(?:\s|$)',
+        # First, try to find a score using regex
+        score_patterns = [
+            r'(?:score|rating)(?:\s*|:\s*|=\s*)(\d{1,3})(?:\/100|\s*\/\s*100)?',
+            r'(\d{1,3})(?:\/100|\s*\/\s*100)',
+            r'I would rate this as (\d{1,3})'
         ]
         
-        # Store the best candidate
-        json_candidate = text
+        score = 70  # Default score if no match
+        for pattern in score_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                score = int(match.group(1))
+                if score > 100:  # Sanity check
+                    score = 100
+                break
         
-        # Try each pattern to find a potential JSON block
-        for pattern in json_patterns:
-            matches = re.search(pattern, text)
-            if matches:
-                json_candidate = matches.group(1)
-                print(f"Extracted JSON using pattern: {pattern[:30]}...")
+        # Extract reasoning - everything after the score or a reasoning label
+        reasoning_patterns = [
+            r'(?:reasoning|explanation|rationale|because)(?:\s*|:\s*)(.*)',
+            r'(?:score|rating)(?:\s*|:\s*|=\s*)\d{1,3}(?:\/100|\s*\/\s*100)?(?:\s*|.\s*)(.*)'
+        ]
+        
+        reasoning = ""
+        for pattern in reasoning_patterns:
+            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+            if match:
+                reasoning = match.group(1).strip()
                 break
                 
-        # If we still don't have valid JSON, try more aggressive cleaning
-        try:
-            return json.loads(json_candidate)
-        except json.JSONDecodeError:
-            print("Standard JSON extraction failed, trying advanced cleaning...")
+        # If no reasoning found but response exists, use the full response
+        if not reasoning and response:
+            # Remove any score-related text
+            for pattern in score_patterns:
+                response = re.sub(pattern, '', response, flags=re.IGNORECASE)
+            reasoning = response.strip()
             
-        # Fix double-bracketed pattern {{...}} which is a common error
-        cleaned = re.sub(r'{{', '{', json_candidate)
-        cleaned = re.sub(r'}}', '}', cleaned)
+        return score, reasoning
+    
+    def _extract_suggestions(self, response: str) -> List[str]:
+        """
+        Extract a list of suggestions from a response.
         
-        # Fix single quotes to double quotes (outside of strings)
-        def replace_quotes(match):
-            return '"' + match.group(1) + '"'
+        Args:
+            response: The LLM response text
             
-        cleaned = re.sub(r"'([^']*)'", replace_quotes, cleaned)
+        Returns:
+            List of suggestion strings
+        """
+        # Look for bulleted or numbered lists
+        suggestion_pattern = r'(?:^|\n)[\*\-•][ \t]*(.*?)(?:\n|$)'
+        numbered_pattern = r'(?:^|\n)\d+\.[ \t]*(.*?)(?:\n|$)'
         
-        # Fix trailing commas
-        cleaned = re.sub(r',\s*}', '}', cleaned)
-        cleaned = re.sub(r',\s*]', ']', cleaned)
+        bullet_matches = re.findall(suggestion_pattern, response)
+        numbered_matches = re.findall(numbered_pattern, response)
         
-        # Try parsing the cleaned JSON
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError as e:
-            print(f"Advanced JSON cleaning failed: {str(e)}")
+        suggestions = bullet_matches + numbered_matches
+        
+        # If no structured lists are found, split by newlines
+        if not suggestions:
+            lines = response.strip().split('\n')
+            suggestions = [line.strip() for line in lines if line.strip() and len(line.strip()) > 10]
+        
+        # Clean up and remove duplicates
+        clean_suggestions = []
+        seen = set()
+        for suggestion in suggestions:
+            # Clean up the suggestion
+            suggestion = suggestion.strip()
             
-            # If all cleaning fails, provide a fallback response
-            return {
-                "readability": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                "standards": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                "complexity": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                "testing": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                "overall_analysis": "JSON parsing failed. Using fallback scores.",
-                "suggestions": ["Run analysis again to get proper analysis"]
-            }
+            # Skip if empty or too short
+            if not suggestion or len(suggestion) < 10:
+                continue
+                
+            # Skip if we've seen this suggestion before
+            suggestion_lower = suggestion.lower()
+            if suggestion_lower in seen:
+                continue
+                
+            clean_suggestions.append(suggestion)
+            seen.add(suggestion_lower)
+            
+        return clean_suggestions

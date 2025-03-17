@@ -1,24 +1,19 @@
 """
-Deep code analysis functionality.
+Deep code analysis functionality using a question-based approach.
 This module provides functionality to analyze code in depth, extracting features,
 architecture patterns, and implementation details using LLM.
 """
 
-import json
 import re
 from typing import Dict, List, Any, Optional
-
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 
 from src.models.types import DeepCodeAnalysisResult
 from src.models.config import Config
 from src.utils.timeout import AIAnalysisError, with_timeout, TimeoutError
-from prompts.deep_code_analysis import DEEP_CODE_ANALYSIS_PROMPT, HUMAN_DEEP_CODE_ANALYSIS_PROMPT
 
 
 class DeepCodeAnalyzer:
-    """Analyzes codebase structure, features, and implementation details using AI."""
+    """Analyzes codebase structure, features, and implementation details using targeted LLM questions."""
 
     def __init__(self, config: Config, llm=None):
         """
@@ -46,15 +41,15 @@ class DeepCodeAnalyzer:
             return self._create_fallback_analysis("No code samples provided or LLM not available")
 
         try:
-            return self._analyze_with_ai(code_samples)
+            return self._analyze_with_direct_questions(code_samples)
         except Exception as e:
             error_msg = f"Error in deep code analysis: {str(e)}"
             print(error_msg)
             return self._create_fallback_analysis(error_msg)
 
-    def _analyze_with_ai(self, code_samples: List[Dict[str, str]]) -> DeepCodeAnalysisResult:
+    def _analyze_with_direct_questions(self, code_samples: List[Dict[str, str]]) -> DeepCodeAnalysisResult:
         """
-        Perform deep code analysis using AI.
+        Perform deep code analysis using direct questions instead of structured JSON.
 
         Args:
             code_samples: List of code samples with filename and content
@@ -68,49 +63,247 @@ class DeepCodeAnalyzer:
             formatted_samples.append(f"File: {sample.get('filename', 'unknown')}\n\n{sample.get('content', '')}")
         
         code_sample_text = "\n\n---\n\n".join(formatted_samples)
-
-        # Create prompt for deep code analysis
-        try:
-            # Create a simple direct prompt
-            prompt_text = DEEP_CODE_ANALYSIS_PROMPT + "\n\n" + "Analyze the following code samples:\n\n" + code_sample_text + "\n\nProvide your deep code analysis in JSON format."
-            
-            # Use direct LLM invocation to minimize potential errors
-            modified_llm = self.llm
-            if hasattr(self.llm, 'temperature'):
-                # Use a lower temperature for more consistent results
-                modified_llm = self.llm.with_config(temperature=0.1)
-                
-            # Run analysis with direct invocation
-            analysis_result = modified_llm.invoke(prompt_text).content
-            
-            # Debug output to see what's happening
-            print(f"Deep code analysis raw response length: {len(analysis_result)} characters")
-            print(f"Response begins with: {analysis_result[:100]}...")
-
-            # Extract JSON with improved error handling
-            analysis_json = self._extract_json_from_llm_response(analysis_result)
-            
-            # Ensure we have all expected fields
-            codebase_breakdown = analysis_json.get("codebase_breakdown", {})
-            implemented_features = analysis_json.get("implemented_features", [])
-            missing_features = analysis_json.get("missing_features", [])
-            frameworks = analysis_json.get("frameworks", [])
-            technologies = analysis_json.get("technologies", [])
-            architecture_patterns = analysis_json.get("architecture_patterns", [])
-            
-            # Return the structured analysis result
-            return {
-                "codebase_breakdown": codebase_breakdown,
-                "implemented_features": implemented_features,
-                "missing_features": missing_features, 
-                "frameworks": frameworks,
-                "technologies": technologies,
-                "architecture_patterns": architecture_patterns,
-                "raw_analysis": analysis_json
+        
+        # Define analysis questions for each aspect we want to analyze
+        analysis_questions = [
+            {
+                "category": "implemented_features",
+                "question": "List all features that have been implemented in this codebase. Be specific and comprehensive.",
+                "parse_func": self._parse_list_response
+            },
+            {
+                "category": "missing_features",
+                "question": "Identify any features that appear to be missing, incomplete, or potentially buggy in this codebase.",
+                "parse_func": self._parse_list_response
+            },
+            {
+                "category": "frameworks",
+                "question": "List all frameworks used in this project (like React, Next.js, Express, etc.).",
+                "parse_func": self._parse_list_response
+            },
+            {
+                "category": "technologies",
+                "question": "List all technologies used in this codebase (languages, databases, authentication methods, etc.).",
+                "parse_func": self._parse_list_response
+            },
+            {
+                "category": "architecture_patterns",
+                "question": "Identify architectural patterns used in this codebase (MVC, microservices, event-driven, etc.).",
+                "parse_func": self._parse_list_response
+            },
+            {
+                "category": "codebase_structure",
+                "question": "Describe the overall structure of this codebase, including organization and how components interact.",
+                "parse_func": self._parse_text_response
             }
+        ]
+        
+        # Create a new result structure
+        result = {
+            "codebase_breakdown": {
+                "structure": "",
+                "components": [],
+                "interactions": "",
+                "code_organization": "",
+            },
+            "implemented_features": [],
+            "missing_features": [],
+            "frameworks": [],
+            "technologies": [],
+            "architecture_patterns": [],
+            "raw_analysis": {}
+        }
+        
+        # Use direct LLM invocation with lower temperature
+        modified_llm = self.llm
+        if hasattr(self.llm, 'temperature'):
+            # Use a lower temperature for more consistent results
+            modified_llm = self.llm.with_config(temperature=0.1)
             
-        except Exception as e:
-            raise AIAnalysisError(f"Error in AI analysis: {str(e)}")
+        # Run each question separately and parse the results
+        for question_info in analysis_questions:
+            try:
+                print(f"Asking question about {question_info['category']}...")
+                
+                # Craft the prompt
+                prompt = f"""Analyze the following code samples:
+
+{code_sample_text}
+
+QUESTION: {question_info['question']}
+
+Please be specific and detailed in your response. 
+Respond with a numbered list if applicable, or detailed paragraphs for structural questions.
+"""
+                
+                # Get the response from the LLM
+                response = modified_llm.invoke(prompt).content
+                
+                # Parse the response based on the category
+                parsed_result = question_info["parse_func"](response)
+                
+                # Add the parsed result to our result structure
+                if question_info["category"] == "codebase_structure":
+                    result["codebase_breakdown"]["structure"] = parsed_result
+                    
+                    # Extract components from the structure response
+                    components = self._extract_components(response)
+                    result["codebase_breakdown"]["components"] = components
+                    
+                    # Add interactions and organization info (from the same response)
+                    interactions = self._extract_interactions(response)
+                    result["codebase_breakdown"]["interactions"] = interactions
+                    
+                    organization = self._extract_organization(response)
+                    result["codebase_breakdown"]["code_organization"] = organization
+                else:
+                    result[question_info["category"]] = parsed_result
+                
+            except Exception as e:
+                print(f"Error getting answer for {question_info['category']}: {str(e)}")
+                # We continue with other questions even if one fails
+        
+        # Add raw analysis data
+        result["raw_analysis"] = {
+            "structure_description": result["codebase_breakdown"]["structure"],
+            "components": result["codebase_breakdown"]["components"],
+            "features": result["implemented_features"],
+            "missing_features": result["missing_features"]
+        }
+        
+        return result
+
+    def _parse_list_response(self, response: str) -> List[str]:
+        """Parse a response into a list of items."""
+        # Remove any markdown formatting
+        clean_response = response.replace('```', '')
+        
+        # Try to find numbered or bulleted list items
+        bullet_pattern = r'(?:^|\n)[\*\-•][ \t]*(.*?)(?:\n|$)'
+        numbered_pattern = r'(?:^|\n)\d+\.[ \t]*(.*?)(?:\n|$)'
+        
+        bullet_matches = re.findall(bullet_pattern, clean_response)
+        numbered_matches = re.findall(numbered_pattern, clean_response)
+        
+        items = bullet_matches + numbered_matches
+        
+        # If no list structure is found, split by newlines and filter
+        if not items:
+            lines = clean_response.split('\n')
+            items = [line.strip() for line in lines if line.strip() and len(line.strip()) > 10]
+        
+        # Remove duplicates while preserving order
+        unique_items = []
+        for item in items:
+            item = item.strip()
+            if item and item not in unique_items:
+                unique_items.append(item)
+                
+        return unique_items
+        
+    def _parse_text_response(self, response: str) -> str:
+        """Parse a free-text response."""
+        # Remove any markdown formatting and clean up
+        clean_response = response.replace('```', '')
+        
+        # Remove common prefixes like "Here's an analysis:"
+        prefixes = [
+            "here is", "here's", "based on", "after analyzing", 
+            "the codebase", "from the provided", "looking at"
+        ]
+        
+        lower_response = clean_response.lower()
+        for prefix in prefixes:
+            if lower_response.startswith(prefix):
+                clean_response = clean_response[len(prefix):].strip()
+        
+        return clean_response
+        
+    def _extract_components(self, response: str) -> List[str]:
+        """Extract component information from the structure response."""
+        # Look for sections that mention components
+        component_pattern = r'(?:components|modules|parts|sections).*?(?:\n|:)((?:.*?\n)+)'
+        matches = re.search(component_pattern, response, re.IGNORECASE)
+        
+        if matches:
+            component_section = matches.group(1)
+            return self._parse_list_response(component_section)
+        
+        # Fallback - look for any capitalized terms that might be components
+        # This is a very simplified approach
+        component_candidates = re.findall(r'\b([A-Z][a-zA-Z]+(?:Component|View|Controller|Model|Service|Module|Manager))\b', response)
+        
+        if component_candidates:
+            return list(set(component_candidates))
+            
+        # If all else fails, just extract some key phrases
+        return self._extract_key_phrases(response, ["component", "module", "class", "service"])
+            
+    def _extract_interactions(self, response: str) -> str:
+        """Extract interaction information from the structure response."""
+        # Look for sections describing interactions
+        interaction_pattern = r'(?:interact|communication|connection|flow).*?(?:\n|:)((?:.*?\n)+)'
+        matches = re.search(interaction_pattern, response, re.IGNORECASE)
+        
+        if matches:
+            return matches.group(1).strip()
+        
+        # If no specific section, look for sentences containing interaction terminology
+        sentences = re.split(r'(?<=[.!?])\s+', response)
+        interaction_sentences = []
+        
+        interaction_terms = ["interact", "communic", "connect", "flow", "call", "send", "receive", "depend"]
+        for sentence in sentences:
+            if any(term in sentence.lower() for term in interaction_terms):
+                interaction_sentences.append(sentence)
+                
+        if interaction_sentences:
+            return " ".join(interaction_sentences)
+            
+        return "Component interaction information not specifically identified."
+        
+    def _extract_organization(self, response: str) -> str:
+        """Extract organization information from the structure response."""
+        # Look for sections describing organization
+        org_pattern = r'(?:organiz|structur|architect|folder|director).*?(?:\n|:)((?:.*?\n)+)'
+        matches = re.search(org_pattern, response, re.IGNORECASE)
+        
+        if matches:
+            return matches.group(1).strip()
+            
+        # If no specific section, extract relevant sentences
+        sentences = re.split(r'(?<=[.!?])\s+', response)
+        org_sentences = []
+        
+        org_terms = ["organiz", "structur", "folder", "direct", "package", "layout"]
+        for sentence in sentences:
+            if any(term in sentence.lower() for term in org_terms):
+                org_sentences.append(sentence)
+                
+        if org_sentences:
+            return " ".join(org_sentences)
+            
+        return "Code organization information not specifically identified."
+        
+    def _extract_key_phrases(self, text: str, keywords: List[str]) -> List[str]:
+        """Extract phrases containing keywords."""
+        result = []
+        # Split into sentences
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        for sentence in sentences:
+            for keyword in keywords:
+                if keyword.lower() in sentence.lower():
+                    # Try to extract a concise phrase
+                    parts = sentence.split(',')
+                    for part in parts:
+                        if keyword.lower() in part.lower():
+                            # Clean and add to results
+                            clean_part = part.strip().rstrip('.!?')
+                            if len(clean_part) > 0 and len(clean_part) < 100:  # Avoid too long phrases
+                                result.append(clean_part)
+                                
+        return list(set(result))[:5]  # Return up to 5 unique phrases
 
     def _create_fallback_analysis(self, error_message: str = None) -> DeepCodeAnalysisResult:
         """
@@ -141,114 +334,3 @@ class DeepCodeAnalyzer:
             result["error"] = error_message
 
         return result
-        
-    def _extract_json_from_llm_response(self, text: str) -> Dict[str, Any]:
-        """
-        Extract valid JSON from LLM response text with improved error handling.
-        
-        Args:
-            text: Raw text from LLM
-            
-        Returns:
-            Parsed JSON object
-        """
-        # First, try to find and extract a JSON object from the response
-        json_patterns = [
-            # Look for content between JSON code blocks
-            r'```(?:json)?\s*(\{[\s\S]*?\})\s*```',
-            # Look for content between JSON tags
-            r'<json>\s*(\{[\s\S]*?\})\s*</json>',
-            # Look for first JSON-like object starting with { and ending with }
-            r'(\{[\s\S]*?\})',
-            # Look for JSON after common prefixes like "Here's the analysis:"
-            r'(?:analysis|result|JSON).*?(\{[\s\S]*\})',
-        ]
-        
-        # Store the original text as fallback
-        json_candidate = text
-        
-        # Try each pattern to find a potential JSON block
-        for pattern in json_patterns:
-            matches = re.search(pattern, text)
-            if matches:
-                json_candidate = matches.group(1)
-                print(f"Extracted JSON using pattern: {pattern[:30]}...")
-                break
-                
-        # Try direct parsing first
-        try:
-            return json.loads(json_candidate)
-        except json.JSONDecodeError:
-            print("Standard JSON extraction failed, trying advanced cleaning...")
-            
-        # Fix double-bracketed pattern {{...}} which is a common error
-        try:
-            cleaned = re.sub(r'{{', '{', json_candidate)
-            cleaned = re.sub(r'}}', '}', cleaned)
-            
-            # Fix single quotes to double quotes
-            cleaned = re.sub(r"'([^']*)'", r'"\1"', cleaned)
-            
-            # Fix trailing commas
-            cleaned = re.sub(r',\s*}', '}', cleaned)
-            cleaned = re.sub(r',\s*]', ']', cleaned)
-            
-            # Try parsing again with cleaned JSON
-            try:
-                return json.loads(cleaned)
-            except json.JSONDecodeError:
-                print("First cleaning attempt failed, trying more aggressive methods...")
-        except Exception as regex_error:
-            print(f"Error in regex cleaning: {str(regex_error)}")
-            
-        # If we still don't have valid JSON, try even more aggressive extraction
-        try:
-            # Look for anything that might be a JSON object
-            start_idx = json_candidate.find('{')
-            end_idx = json_candidate.rfind('}')
-            
-            if start_idx >= 0 and end_idx > start_idx:
-                extracted = json_candidate[start_idx:end_idx+1]
-                
-                # Try to fix common issues with a more comprehensive approach
-                # Replace single quotes with double quotes
-                extracted = extracted.replace("'", '"')
-                
-                # Fix unquoted property names
-                property_pattern = r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)'
-                extracted = re.sub(property_pattern, r'\1"\2"\3', extracted)
-                
-                try:
-                    return json.loads(extracted)
-                except json.JSONDecodeError as e:
-                    print(f"Advanced extraction failed: {str(e)}")
-        except Exception as e:
-            print(f"Error in advanced extraction: {str(e)}")
-        
-        # If all else fails, return a fallback structure
-        print("All JSON parsing attempts failed, using fallback structure")
-        return {
-            "codebase_breakdown": {
-                "structure": "Structure analysis failed due to JSON parsing error",
-                "components": ["Components could not be extracted due to parsing error"],
-                "interactions": "Interaction analysis unavailable due to parsing error",
-                "code_organization": "Organization analysis unavailable due to parsing error"
-            },
-            "implemented_features": [
-                "Feature analysis unavailable due to parsing error",
-                "Please run the analysis again for better results"
-            ],
-            "missing_features": [
-                "Missing feature analysis unavailable due to parsing error"
-            ],
-            "frameworks": [
-                "Framework detection unavailable due to parsing error"
-            ],
-            "technologies": [
-                "Technology detection unavailable due to parsing error"
-            ],
-            "architecture_patterns": [
-                "Architecture pattern detection unavailable due to parsing error"
-            ],
-            "additional_insights": "JSON parsing from LLM response failed. The raw response might contain useful information but could not be automatically parsed."
-        }
