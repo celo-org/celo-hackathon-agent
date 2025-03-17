@@ -5,6 +5,7 @@ architecture patterns, and implementation details using LLM.
 """
 
 import json
+import re
 from typing import Dict, List, Any, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -70,7 +71,7 @@ class DeepCodeAnalyzer:
 
         # Create prompt for deep code analysis
         try:
-            # Create a very simple prompt string manually to avoid template issues
+            # Create a simple direct prompt
             prompt_text = DEEP_CODE_ANALYSIS_PROMPT + "\n\n" + "Analyze the following code samples:\n\n" + code_sample_text + "\n\nProvide your deep code analysis in JSON format."
             
             # Use direct LLM invocation to minimize potential errors
@@ -86,68 +87,8 @@ class DeepCodeAnalyzer:
             print(f"Deep code analysis raw response length: {len(analysis_result)} characters")
             print(f"Response begins with: {analysis_result[:100]}...")
 
-            # Attempt to extract JSON from response
-            # Sometimes the model returns markdown-formatted JSON with ```json tags
-            if "```json" in analysis_result and "```" in analysis_result:
-                # Extract content between ```json and ``` 
-                json_start = analysis_result.find("```json") + 7
-                json_end = analysis_result.find("```", json_start)
-                if json_end > json_start:
-                    analysis_result = analysis_result[json_start:json_end].strip()
-            elif "```" in analysis_result:
-                # Extract content between ``` and ```
-                json_start = analysis_result.find("```") + 3
-                json_end = analysis_result.find("```", json_start)
-                if json_end > json_start:
-                    analysis_result = analysis_result[json_start:json_end].strip()
-
-            # Try to parse JSON with extensive error recovery
-            try:
-                analysis_json = json.loads(analysis_result)
-            except json.JSONDecodeError as e:
-                print(f"Initial JSON parsing failed in deep code analysis: {str(e)}")
-                
-                # Try to clean up and fix common JSON formatting issues
-                cleaned_json = analysis_result.replace(",\n}", "\n}")  # Fix trailing commas
-                cleaned_json = cleaned_json.replace(",]", "]")  # Fix trailing commas in arrays
-                
-                # Ensure all strings use double quotes (not single quotes)
-                import re
-                try:
-                    # Replace only pairs of single quotes that contain valid text 
-                    # This regex finds text like 'example' and replaces with "example"
-                    cleaned_json = re.sub(r"'([^']*)'", r'"\1"', cleaned_json)
-                except Exception as regex_error:
-                    print(f"Error in quote replacement: {str(regex_error)}")
-                
-                # If the result doesn't start with {, try to find and extract any JSON-like content
-                if not cleaned_json.strip().startswith("{"):
-                    json_start = cleaned_json.find("{")
-                    json_end = cleaned_json.rfind("}")
-                    if json_start >= 0 and json_end > json_start:
-                        cleaned_json = cleaned_json[json_start:json_end+1]
-                
-                # Try parsing again with cleaned JSON
-                try:
-                    analysis_json = json.loads(cleaned_json)
-                except json.JSONDecodeError as e2:
-                    print(f"JSON parsing failed after cleaning in deep code analysis: {str(e2)}")
-                    
-                    # Create a minimal valid response as fallback
-                    analysis_json = {
-                        "codebase_breakdown": {
-                            "structure": "Unable to parse LLM response",
-                            "components": ["Component analysis failed"],
-                            "interactions": "Analysis failed due to JSON parsing error",
-                            "code_organization": "See error details in log"
-                        },
-                        "implemented_features": ["Feature analysis unavailable due to parsing error"],
-                        "missing_features": ["Missing feature analysis unavailable"],
-                        "frameworks": ["Framework detection unavailable"],
-                        "technologies": ["Technology detection unavailable"],
-                        "architecture_patterns": ["Architecture pattern detection unavailable"],
-                        "additional_insights": "JSON parsing failed. Please check logs for details."
-                    }
+            # Extract JSON with improved error handling
+            analysis_json = self._extract_json_from_llm_response(analysis_result)
             
             # Ensure we have all expected fields
             codebase_breakdown = analysis_json.get("codebase_breakdown", {})
@@ -168,8 +109,6 @@ class DeepCodeAnalyzer:
                 "raw_analysis": analysis_json
             }
             
-        except json.JSONDecodeError as e:
-            raise AIAnalysisError(f"Error parsing AI response: {str(e)}")
         except Exception as e:
             raise AIAnalysisError(f"Error in AI analysis: {str(e)}")
 
@@ -184,12 +123,17 @@ class DeepCodeAnalyzer:
             DeepCodeAnalysisResult with fallback values
         """
         result = {
-            "codebase_breakdown": {},
-            "implemented_features": [],
-            "missing_features": [],
-            "frameworks": [],
-            "technologies": [],
-            "architecture_patterns": [],
+            "codebase_breakdown": {
+                "structure": "Analysis failed - using fallback response",
+                "components": ["Unable to determine components"],
+                "interactions": "Unable to analyze component interactions", 
+                "code_organization": "Unable to analyze code organization"
+            },
+            "implemented_features": ["Unable to determine implemented features"],
+            "missing_features": ["Unable to determine missing or incomplete features"],
+            "frameworks": ["Unable to detect frameworks"],
+            "technologies": ["Unable to detect technologies"],
+            "architecture_patterns": ["Unable to detect architecture patterns"],
             "raw_analysis": None
         }
 
@@ -197,3 +141,114 @@ class DeepCodeAnalyzer:
             result["error"] = error_message
 
         return result
+        
+    def _extract_json_from_llm_response(self, text: str) -> Dict[str, Any]:
+        """
+        Extract valid JSON from LLM response text with improved error handling.
+        
+        Args:
+            text: Raw text from LLM
+            
+        Returns:
+            Parsed JSON object
+        """
+        # First, try to find and extract a JSON object from the response
+        json_patterns = [
+            # Look for content between JSON code blocks
+            r'```(?:json)?\s*(\{[\s\S]*?\})\s*```',
+            # Look for content between JSON tags
+            r'<json>\s*(\{[\s\S]*?\})\s*</json>',
+            # Look for first JSON-like object starting with { and ending with }
+            r'(\{[\s\S]*?\})',
+            # Look for JSON after common prefixes like "Here's the analysis:"
+            r'(?:analysis|result|JSON).*?(\{[\s\S]*\})',
+        ]
+        
+        # Store the original text as fallback
+        json_candidate = text
+        
+        # Try each pattern to find a potential JSON block
+        for pattern in json_patterns:
+            matches = re.search(pattern, text)
+            if matches:
+                json_candidate = matches.group(1)
+                print(f"Extracted JSON using pattern: {pattern[:30]}...")
+                break
+                
+        # Try direct parsing first
+        try:
+            return json.loads(json_candidate)
+        except json.JSONDecodeError:
+            print("Standard JSON extraction failed, trying advanced cleaning...")
+            
+        # Fix double-bracketed pattern {{...}} which is a common error
+        try:
+            cleaned = re.sub(r'{{', '{', json_candidate)
+            cleaned = re.sub(r'}}', '}', cleaned)
+            
+            # Fix single quotes to double quotes
+            cleaned = re.sub(r"'([^']*)'", r'"\1"', cleaned)
+            
+            # Fix trailing commas
+            cleaned = re.sub(r',\s*}', '}', cleaned)
+            cleaned = re.sub(r',\s*]', ']', cleaned)
+            
+            # Try parsing again with cleaned JSON
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                print("First cleaning attempt failed, trying more aggressive methods...")
+        except Exception as regex_error:
+            print(f"Error in regex cleaning: {str(regex_error)}")
+            
+        # If we still don't have valid JSON, try even more aggressive extraction
+        try:
+            # Look for anything that might be a JSON object
+            start_idx = json_candidate.find('{')
+            end_idx = json_candidate.rfind('}')
+            
+            if start_idx >= 0 and end_idx > start_idx:
+                extracted = json_candidate[start_idx:end_idx+1]
+                
+                # Try to fix common issues with a more comprehensive approach
+                # Replace single quotes with double quotes
+                extracted = extracted.replace("'", '"')
+                
+                # Fix unquoted property names
+                property_pattern = r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)'
+                extracted = re.sub(property_pattern, r'\1"\2"\3', extracted)
+                
+                try:
+                    return json.loads(extracted)
+                except json.JSONDecodeError as e:
+                    print(f"Advanced extraction failed: {str(e)}")
+        except Exception as e:
+            print(f"Error in advanced extraction: {str(e)}")
+        
+        # If all else fails, return a fallback structure
+        print("All JSON parsing attempts failed, using fallback structure")
+        return {
+            "codebase_breakdown": {
+                "structure": "Structure analysis failed due to JSON parsing error",
+                "components": ["Components could not be extracted due to parsing error"],
+                "interactions": "Interaction analysis unavailable due to parsing error",
+                "code_organization": "Organization analysis unavailable due to parsing error"
+            },
+            "implemented_features": [
+                "Feature analysis unavailable due to parsing error",
+                "Please run the analysis again for better results"
+            ],
+            "missing_features": [
+                "Missing feature analysis unavailable due to parsing error"
+            ],
+            "frameworks": [
+                "Framework detection unavailable due to parsing error"
+            ],
+            "technologies": [
+                "Technology detection unavailable due to parsing error"
+            ],
+            "architecture_patterns": [
+                "Architecture pattern detection unavailable due to parsing error"
+            ],
+            "additional_insights": "JSON parsing from LLM response failed. The raw response might contain useful information but could not be automatically parsed."
+        }

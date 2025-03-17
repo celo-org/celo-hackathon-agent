@@ -3,6 +3,7 @@ Code quality analysis functionality.
 """
 
 import json
+import re
 from typing import Dict, List, Tuple, Any, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -70,9 +71,9 @@ class CodeQualityAnalyzer:
         Returns:
             CodeQualityResult with AI-based quality estimation
         """
-        # Create a prompt for the AI model
-        quality_prompt = ChatPromptTemplate.from_template(
-            """You are a senior software engineer tasked with making a rough estimate of a GitHub repository's code quality.
+        try:
+            # Create direct prompt text
+            prompt_text = f"""You are a senior software engineer tasked with making a rough estimate of a GitHub repository's code quality.
             Based on the limited information provided about the repository (name, organization, description), 
             provide a reasonable estimate of what the code quality might be like.
             
@@ -93,21 +94,16 @@ class CodeQualityAnalyzer:
                 "suggestions": ["suggestion1", "suggestion2"]
             }}
             """
-        )
 
-        try:
-            # Run analysis with the AI model
-            analysis_chain = quality_prompt | self.llm | StrOutputParser()
-            analysis_result = analysis_chain.invoke(
-                {
-                    "repo_owner": repo_owner,
-                    "repo_name": repo_name,
-                    "repo_description": repo_description,
-                }
-            )
-
-            # Parse the AI response
-            analysis_json = json.loads(analysis_result)
+            # Use direct LLM invocation with lower temperature
+            modified_llm = self.llm
+            if hasattr(self.llm, 'temperature'):
+                modified_llm = self.llm.with_config(temperature=0.1)
+                
+            analysis_result = modified_llm.invoke(prompt_text).content
+            
+            # Parse the response with error handling
+            analysis_json = self._extract_json_from_llm_response(analysis_result)
 
             # Extract scores and reasoning from AI response
             readability = analysis_json.get("readability", {})
@@ -268,7 +264,7 @@ class CodeQualityAnalyzer:
 
         # Create prompt for code quality analysis
         try:
-            # Create a very simple prompt string manually to avoid template issues
+            # Create a direct prompt that doesn't rely on template formatting
             prompt_text = CODE_QUALITY_PROMPT + "\n\n" + "Analyze the following code samples:\n\n" + code_sample_text + "\n\nProvide your quality assessment in JSON format."
             
             # Use direct LLM invocation to minimize potential errors
@@ -284,62 +280,8 @@ class CodeQualityAnalyzer:
             print(f"Code quality analysis raw response length: {len(analysis_result)} characters")
             print(f"Response begins with: {analysis_result[:100]}...")
 
-            # Attempt to extract JSON from response
-            # Sometimes the model returns markdown-formatted JSON with ```json tags
-            if "```json" in analysis_result and "```" in analysis_result:
-                # Extract content between ```json and ``` 
-                json_start = analysis_result.find("```json") + 7
-                json_end = analysis_result.find("```", json_start)
-                if json_end > json_start:
-                    analysis_result = analysis_result[json_start:json_end].strip()
-            elif "```" in analysis_result:
-                # Extract content between ``` and ```
-                json_start = analysis_result.find("```") + 3
-                json_end = analysis_result.find("```", json_start)
-                if json_end > json_start:
-                    analysis_result = analysis_result[json_start:json_end].strip()
-
-            # Try to parse JSON with extensive error recovery
-            try:
-                analysis_json = json.loads(analysis_result)
-            except json.JSONDecodeError as e:
-                print(f"Initial JSON parsing failed: {str(e)}")
-                
-                # Try to clean up and fix common JSON formatting issues
-                cleaned_json = analysis_result.replace(",\n}", "\n}")  # Fix trailing commas
-                cleaned_json = cleaned_json.replace(",]", "]")  # Fix trailing commas in arrays
-                
-                # Ensure all strings use double quotes (not single quotes)
-                import re
-                try:
-                    # Replace only pairs of single quotes that contain valid text 
-                    # This regex finds text like 'example' and replaces with "example"
-                    cleaned_json = re.sub(r"'([^']*)'", r'"\1"', cleaned_json)
-                except Exception as regex_error:
-                    print(f"Error in quote replacement: {str(regex_error)}")
-                
-                # If the result doesn't start with {, try to find and extract any JSON-like content
-                if not cleaned_json.strip().startswith("{"):
-                    json_start = cleaned_json.find("{")
-                    json_end = cleaned_json.rfind("}")
-                    if json_start >= 0 and json_end > json_start:
-                        cleaned_json = cleaned_json[json_start:json_end+1]
-                
-                # Try parsing again with cleaned JSON
-                try:
-                    analysis_json = json.loads(cleaned_json)
-                except json.JSONDecodeError as e2:
-                    print(f"JSON parsing failed after cleaning: {str(e2)}")
-                    
-                    # Create a minimal valid response as fallback
-                    analysis_json = {
-                        "readability": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                        "standards": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                        "complexity": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                        "testing": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
-                        "overall_analysis": "Unable to parse LLM response into valid JSON. Using fallback scores.",
-                        "suggestions": ["Fix JSON parsing to get accurate analysis"]
-                    }
+            # Extract and parse JSON
+            analysis_json = self._extract_json_from_llm_response(analysis_result)
 
             # Extract scores and reasoning
             readability = analysis_json.get("readability", {})
@@ -510,3 +452,72 @@ class CodeQualityAnalyzer:
             result["note"] = f"Used fallback quality estimation: {error_message}"
 
         return result
+        
+    def _extract_json_from_llm_response(self, text: str) -> Dict[str, Any]:
+        """
+        Extract valid JSON from LLM response text with improved error handling.
+        
+        Args:
+            text: Raw text from LLM
+            
+        Returns:
+            Parsed JSON object
+        """
+        # First, try to find and extract a JSON object from the response
+        json_patterns = [
+            # Look for content between JSON code blocks
+            r'```(?:json)?\s*(\{[\s\S]*?\})\s*```',
+            # Look for content between JSON tags
+            r'<json>\s*(\{[\s\S]*?\})\s*</json>',
+            # Look for content between brackets (full response)
+            r'^(?:\s*)\{[\s\S]*\}(?:\s*)$',
+            # Look for just the first JSON object in the response
+            r'(\{[\s\S]*?\})(?:\s|$)',
+        ]
+        
+        # Store the best candidate
+        json_candidate = text
+        
+        # Try each pattern to find a potential JSON block
+        for pattern in json_patterns:
+            matches = re.search(pattern, text)
+            if matches:
+                json_candidate = matches.group(1)
+                print(f"Extracted JSON using pattern: {pattern[:30]}...")
+                break
+                
+        # If we still don't have valid JSON, try more aggressive cleaning
+        try:
+            return json.loads(json_candidate)
+        except json.JSONDecodeError:
+            print("Standard JSON extraction failed, trying advanced cleaning...")
+            
+        # Fix double-bracketed pattern {{...}} which is a common error
+        cleaned = re.sub(r'{{', '{', json_candidate)
+        cleaned = re.sub(r'}}', '}', cleaned)
+        
+        # Fix single quotes to double quotes (outside of strings)
+        def replace_quotes(match):
+            return '"' + match.group(1) + '"'
+            
+        cleaned = re.sub(r"'([^']*)'", replace_quotes, cleaned)
+        
+        # Fix trailing commas
+        cleaned = re.sub(r',\s*}', '}', cleaned)
+        cleaned = re.sub(r',\s*]', ']', cleaned)
+        
+        # Try parsing the cleaned JSON
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            print(f"Advanced JSON cleaning failed: {str(e)}")
+            
+            # If all cleaning fails, provide a fallback response
+            return {
+                "readability": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                "standards": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                "complexity": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                "testing": {"score": 70, "reasoning": "Analysis failed, using fallback scores"},
+                "overall_analysis": "JSON parsing failed. Using fallback scores.",
+                "suggestions": ["Run analysis again to get proper analysis"]
+            }

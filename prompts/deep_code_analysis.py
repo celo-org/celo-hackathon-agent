@@ -22,43 +22,43 @@ Provide a comprehensive analysis that covers:
 
 6. Architecture Patterns: Identify architectural patterns (MVC, microservices, event-driven, etc.).
 
-Respond in JSON format with the following structure:
+Respond with a valid JSON object with this exact structure (no explanation text before or after the JSON):
+{
+  "codebase_breakdown": {
+    "structure": "description of codebase structure",
+    "components": ["component1", "component2"],
+    "interactions": "how components interact",
+    "code_organization": "description of code organization"
+  },
+  "implemented_features": [
+    "Detailed description of feature 1",
+    "Detailed description of feature 2"
+  ],
+  "missing_features": [
+    "Description of missing or incomplete feature 1",
+    "Description of missing or incomplete feature 2"
+  ],
+  "frameworks": [
+    "Framework 1",
+    "Framework 2"
+  ],
+  "technologies": [
+    "Technology 1",
+    "Technology 2"
+  ],
+  "architecture_patterns": [
+    "Pattern 1",
+    "Pattern 2"
+  ],
+  "additional_insights": "Any other important insights about the codebase"
+}
 
-{{
-    "codebase_breakdown": {{
-        "structure": "description of codebase structure",
-        "components": ["component1", "component2"],
-        "interactions": "how components interact",
-        "code_organization": "description of code organization"
-    }},
-    "implemented_features": [
-        "Detailed description of feature 1",
-        "Detailed description of feature 2"
-    ],
-    "missing_features": [
-        "Description of missing or incomplete feature 1",
-        "Description of missing or incomplete feature 2"
-    ],
-    "frameworks": [
-        "Framework 1",
-        "Framework 2"
-    ],
-    "technologies": [
-        "Technology 1",
-        "Technology 2"
-    ],
-    "architecture_patterns": [
-        "Pattern 1",
-        "Pattern 2"
-    ],
-    "additional_insights": "Any other important insights about the codebase"
-}}
-
-Make sure your response is a properly formatted JSON object that can be parsed using json.loads().
+Make sure your response is a properly formatted JSON object with double quotes around property names.
+Do not include any explanatory text before or after the JSON.
 """
 
 HUMAN_DEEP_CODE_ANALYSIS_PROMPT = """Analyze the following code samples:
 
 {code_samples}
 
-Provide your deep code analysis in JSON format."""
+Provide your deep code analysis as a valid JSON object with the structure I specified. No other text."""
