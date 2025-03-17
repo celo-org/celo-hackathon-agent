@@ -146,6 +146,34 @@ class GitHubRepository:
         }
     
     @with_timeout(30)
+    def get_total_contributor_count(self) -> int:
+        """
+        Get the total number of contributors for a repository.
+        
+        Returns:
+            Total number of contributors
+        """
+        if self.repo is None:
+            return 0
+            
+        try:
+            # Get contributor count - count all contributors
+            contributors = self.repo.get_contributors()
+            # This could be expensive for large repos, so we'll use pagination
+            # and count efficiently
+            
+            contributor_count = 0
+            for _ in contributors:
+                contributor_count += 1
+                if contributor_count > 100:  # Cap at 100 for performance reasons
+                    break
+                    
+            return contributor_count
+        except Exception as e:
+            print(f"Error counting repository contributors: {str(e)}")
+            return 0
+    
+    @with_timeout(30)
     def get_repository_details(self) -> RepoDetails:
         """
         Get repository details using GitHub API.
@@ -162,7 +190,10 @@ class GitHubRepository:
             )
         
         try:
-            # Get contributors list (limited to top 5 for display)
+            # Get total contributor count
+            total_contributors = self.get_total_contributor_count()
+            
+            # Get top contributors list (limited to top 5 for display)
             contributors = self.get_repository_contributors(limit=5)
             
             # Get commit statistics
@@ -182,7 +213,7 @@ class GitHubRepository:
                 "last_update": self.repo.updated_at.isoformat() if self.repo.updated_at else "",
                 "language": self.repo.language or "",
                 "contributors": contributors,
-                "total_contributors": len(contributors),
+                "total_contributors": total_contributors,
                 "commit_stats": commit_stats,
                 "main_languages": languages,
                 "license_type": self.repo.license.name if self.repo.license else None,

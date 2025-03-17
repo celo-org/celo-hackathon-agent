@@ -348,8 +348,15 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                     
                     # Repository Contributors
                     contributors = repo.get('contributors', [])
+                    total_contributors = repo.get('total_contributors', len(contributors))
+                    
                     if contributors:
-                        f.write("### Repository Contributors\n\n")
+                        # Determine if we're showing all or just top contributors
+                        if total_contributors > len(contributors):
+                            f.write(f"### Top {len(contributors)} Contributors (of {total_contributors} total)\n\n")
+                        else:
+                            f.write("### Repository Contributors\n\n")
+                            
                         f.write("| Username | Profile | Contributions |\n")
                         f.write("|----------|---------|---------------|\n")
                         
@@ -450,8 +457,15 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                         
                         # Contributors
                         contributors = repo.get('contributors', [])
+                        total_contributors = repo.get('total_contributors', len(contributors))
+                        
                         if contributors:
-                            f.write("#### Contributors\n\n")
+                            # Determine if we're showing all or just top contributors
+                            if total_contributors > len(contributors):
+                                f.write(f"#### Top {len(contributors)} Contributors (of {total_contributors} total)\n\n")
+                            else:
+                                f.write("#### Contributors\n\n")
+                                
                             f.write("| Username | Profile | Contributions |\n")
                             f.write("|----------|---------|---------------|\n")
                             
@@ -478,20 +492,27 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
                 f.write(f"- **Last Updated:** {format_date(repo_details.get('last_update', 'N/A'))}\n")
                 
                 # Add contributor info if available
-                if 'contributors' in repo_details and repo_details['contributors']:
-                    f.write(f"- **Total Contributors:** {len(repo_details['contributors'])}\n\n")
+                if 'contributors' in repo_details:
+                    total_contributors = repo_details.get('total_contributors', len(repo_details['contributors']))
+                    f.write(f"- **Total Contributors:** {total_contributors}\n\n")
                     
-                    f.write("### Repository Contributors\n\n")
-                    f.write("| Username | Profile | Contributions |\n")
-                    f.write("|----------|---------|---------------|\n")
-                    
-                    for contributor in repo_details['contributors']:
-                        username = contributor.get('login', 'N/A')
-                        profile_url = contributor.get('profile_url', '#')
-                        contributions = contributor.get('contributions', 0)
+                    if repo_details['contributors']:
+                        # Determine if we're showing all or just top contributors
+                        if total_contributors > len(repo_details['contributors']):
+                            f.write(f"### Top {len(repo_details['contributors'])} Contributors (of {total_contributors} total)\n\n")
+                        else:
+                            f.write("### Repository Contributors\n\n")
+                            
+                        f.write("| Username | Profile | Contributions |\n")
+                        f.write("|----------|---------|---------------|\n")
                         
-                        f.write(f"| {username} | [{profile_url}]({profile_url}) | {contributions} |\n")
-                    f.write("\n")
+                        for contributor in repo_details['contributors']:
+                            username = contributor.get('login', 'N/A')
+                            profile_url = contributor.get('profile_url', '#')
+                            contributions = contributor.get('contributions', 0)
+                            
+                            f.write(f"| {username} | [{profile_url}]({profile_url}) | {contributions} |\n")
+                        f.write("\n")
                 else:
                     f.write("\n")
 

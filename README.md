@@ -54,8 +54,52 @@ python create_sample_data.py
 
 ### 🔍 Run the Analyzer
 
+#### Using the Makefile (recommended):
+```bash
+# Display available commands
+make help
+
+# Install dependencies
+make setup
+
+# Run in interactive mode
+make run
+
+# Analyze projects from an Excel file
+make run-excel FILE=sample_projects.xlsx VERBOSE=1
+
+# Analyze a GitHub repository directly
+make run-url URL="https://github.com/user/repo"
+
+# Analyze with custom project name
+make run-url URL="https://github.com/user/repo" NAME="My Project" VERBOSE=1
+
+# Clean up generated files
+make clean
+```
+
+#### Using the interactive CLI tool:
+```bash
+./devrel-agent.py
+```
+
+This will launch an interactive CLI that guides you through the process.
+
+#### Using the legacy script:
 ```bash
 python run.py --excel sample_projects.xlsx --output reports --verbose
+```
+
+#### Using the CLI tool in non-interactive mode:
+```bash
+# Analyze from Excel file
+./devrel-agent.py --non-interactive --excel sample_projects.xlsx --verbose
+
+# Analyze direct GitHub URLs (project name will be automatically extracted from repository name)
+./devrel-agent.py --non-interactive --urls "https://github.com/user/repo1,https://github.com/user/repo2" --verbose
+
+# Analyze direct GitHub URLs with custom project name
+./devrel-agent.py --non-interactive --urls "https://github.com/user/repo1,https://github.com/user/repo2" --project-name "My Project" --verbose
 ```
 
 #### Optional Arguments:
@@ -80,7 +124,9 @@ celo-hackathon-agent/
 │   ├── utils/          # Utility functions
 │   ├── reporting/      # Report generation
 │   └── main.py         # Main application logic
-├── run.py              # Entry point script
+├── run.py              # Legacy entry point script
+├── devrel-agent.py     # Interactive CLI tool
+├── Makefile            # Simplified command interface
 ├── config.json         # Configuration
 └── requirements.txt    # Dependencies
 ```
