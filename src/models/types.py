@@ -2,7 +2,7 @@
 Data type definitions for the Celo Hackathon Analyzer.
 """
 
-from typing import Dict, List, Optional, TypedDict, Union
+from typing import Dict, List, Optional, TypedDict, Union, Any
 
 
 class ContributorDetails(TypedDict):
@@ -82,6 +82,18 @@ class CodeQualityResult(TypedDict):
     error: Optional[str]
 
 
+class DeepCodeAnalysisResult(TypedDict):
+    """Deep code analysis result"""
+    codebase_breakdown: Dict[str, Any]
+    implemented_features: List[str]
+    missing_features: List[str]
+    frameworks: List[str]
+    technologies: List[str]
+    architecture_patterns: List[str]
+    raw_analysis: Optional[Dict[str, Any]]
+    error: Optional[str]
+
+
 class CeloEvidence(TypedDict):
     """Evidence of Celo integration"""
     file: str
@@ -103,6 +115,7 @@ class RepositoryAnalysisResult(TypedDict):
     repo_details: RepoDetails
     code_quality: CodeQualityResult
     celo_integration: CeloIntegrationResult
+    deep_code_analysis: Optional[DeepCodeAnalysisResult]
     error: Optional[str]
 
 
@@ -114,5 +127,5 @@ class ProjectAnalysisResult(TypedDict):
     github_urls: List[str]
     project_owner_github_url: List[str]
     project_url: str
-    analysis: Dict[str, Union[List[RepoDetails], CodeQualityResult, CeloIntegrationResult]]
+    analysis: Dict[str, Union[List[RepoDetails], CodeQualityResult, CeloIntegrationResult, DeepCodeAnalysisResult]]
     error: Optional[str]

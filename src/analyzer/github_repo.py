@@ -26,6 +26,7 @@ class GitHubRepository:
         self.repo = None
         self.repo_owner = None
         self.repo_name = None
+        self.code_sample_files = []  # Track filenames of collected code samples
     
     def parse_github_url(self, repo_url: str) -> Tuple[str, str]:
         """
@@ -457,6 +458,7 @@ class GitHubRepository:
         # Code samples for analysis
         code_samples = []
         code_file_paths = []
+        self.code_sample_files = []  # Clear previous file names
         
         # Maximum files to process to avoid excessive API calls
         max_files_to_process = 100
@@ -507,18 +509,20 @@ class GitHubRepository:
                     
                 # Collect code file samples
                 code_extensions = (".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".sol", 
-                                  ".go", ".rb", ".php", ".c", ".cpp", ".cs")
+                                  ".go", ".rb", ".php", ".c", ".cpp", ".cs", ".html", ".css", ".scss", ".json")
                 if file_path.lower().endswith(code_extensions):
                     try:
                         # Add to code file paths
                         code_file_paths.append(file_path)
                         
-                        # Only sample up to 10 code files
-                        if len(code_samples) < 10:
+                        # Only sample up to 15 code files (increased from 10 for deep analysis)
+                        if len(code_samples) < 15:
                             file_content = self.repo.get_contents(file_path).decoded_content.decode('utf-8')
                             # Limit sample size
-                            sample = file_content[:1000] + "..." if len(file_content) > 1000 else file_content
+                            sample = file_content[:1500] + "..." if len(file_content) > 1500 else file_content
                             code_samples.append(f"File: {file_path}\n\n{sample}\n\n")
+                            # Store file path for deep code analysis
+                            self.code_sample_files.append(file_path)
                     except Exception:
                         # Skip files that can't be decoded
                         continue

@@ -267,17 +267,40 @@ class CodeQualityAnalyzer:
         code_sample_text = "\n".join(code_samples)
 
         # Create prompt for code quality analysis
-        quality_prompt = ChatPromptTemplate.from_messages(
-            [("system", CODE_QUALITY_PROMPT), ("human", HUMAN_CODE_QUALITY_PROMPT)]
-        )
-
         try:
+            # Use a simpler prompt template approach
+            combined_prompt = CODE_QUALITY_PROMPT + "\n\n" + HUMAN_CODE_QUALITY_PROMPT
+            quality_prompt = ChatPromptTemplate.from_template(combined_prompt)
+
             # Run analysis with AI model
             analysis_chain = quality_prompt | self.llm | StrOutputParser()
             analysis_result = analysis_chain.invoke({"code_samples": code_sample_text})
 
-            # Parse the AI response
-            analysis_json = json.loads(analysis_result)
+            # Attempt to extract JSON from response
+            # Sometimes the model returns markdown-formatted JSON with ```json tags
+            if "```json" in analysis_result and "```" in analysis_result:
+                # Extract content between ```json and ``` 
+                json_start = analysis_result.find("```json") + 7
+                json_end = analysis_result.find("```", json_start)
+                if json_end > json_start:
+                    analysis_result = analysis_result[json_start:json_end].strip()
+            elif "```" in analysis_result:
+                # Extract content between ``` and ```
+                json_start = analysis_result.find("```") + 3
+                json_end = analysis_result.find("```", json_start)
+                if json_end > json_start:
+                    analysis_result = analysis_result[json_start:json_end].strip()
+
+            # Try to parse JSON
+            try:
+                analysis_json = json.loads(analysis_result)
+            except json.JSONDecodeError:
+                # Try to clean up and fix common JSON formatting issues
+                cleaned_json = analysis_result.replace(",\n}", "\n}")  # Fix trailing commas
+                cleaned_json = cleaned_json.replace(",]", "]")  # Fix trailing commas in arrays
+                
+                # Try parsing again with cleaned JSON
+                analysis_json = json.loads(cleaned_json)
 
             # Extract scores and reasoning
             readability = analysis_json.get("readability", {})

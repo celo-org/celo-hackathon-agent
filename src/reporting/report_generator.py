@@ -1137,6 +1137,73 @@ def generate_project_report(result: Dict[str, Any], output_path: str):
         if not strengths and not concerns:
             f.write("Insufficient data for a detailed expert review. More repository activity and code samples would help provide a more comprehensive analysis.\n\n")
 
+        # Deep Code Analysis Section
+        if "analysis" in result and "deep_code_analysis" in result["analysis"]:
+            deep_analysis = result["analysis"]["deep_code_analysis"]
+            
+            if isinstance(deep_analysis, dict) and not deep_analysis.get("error"):
+                f.write("## Deep Code Analysis\n\n")
+                
+                # Implemented Features
+                implemented_features = deep_analysis.get("implemented_features", [])
+                if implemented_features:
+                    f.write("### Implemented Features\n\n")
+                    for feature in implemented_features:
+                        f.write(f"- {feature}\n")
+                    f.write("\n")
+                
+                # Missing Features
+                missing_features = deep_analysis.get("missing_features", [])
+                if missing_features:
+                    f.write("### Missing or Incomplete Features\n\n")
+                    for feature in missing_features:
+                        f.write(f"- {feature}\n")
+                    f.write("\n")
+                
+                # Technologies and Frameworks
+                frameworks = deep_analysis.get("frameworks", [])
+                technologies = deep_analysis.get("technologies", [])
+                
+                if frameworks:
+                    f.write("### Frameworks\n\n")
+                    for framework in frameworks:
+                        f.write(f"- {framework}\n")
+                    f.write("\n")
+                
+                if technologies:
+                    f.write("### Technologies\n\n")
+                    for tech in technologies:
+                        f.write(f"- {tech}\n")
+                    f.write("\n")
+                
+                # Architecture Patterns
+                architecture_patterns = deep_analysis.get("architecture_patterns", [])
+                if architecture_patterns:
+                    f.write("### Architecture Patterns\n\n")
+                    for pattern in architecture_patterns:
+                        f.write(f"- {pattern}\n")
+                    f.write("\n")
+                
+                # Codebase Breakdown
+                codebase_breakdown = deep_analysis.get("codebase_breakdown", {})
+                if codebase_breakdown:
+                    f.write("### Codebase Structure\n\n")
+                    
+                    if "structure" in codebase_breakdown:
+                        f.write(f"**Structure:** {codebase_breakdown['structure']}\n\n")
+                    
+                    if "components" in codebase_breakdown and codebase_breakdown["components"]:
+                        f.write("**Components:**\n\n")
+                        for component in codebase_breakdown["components"]:
+                            f.write(f"- {component}\n")
+                        f.write("\n")
+                    
+                    if "interactions" in codebase_breakdown:
+                        f.write(f"**Component Interactions:** {codebase_breakdown['interactions']}\n\n")
+                    
+                    if "code_organization" in codebase_breakdown:
+                        f.write(f"**Code Organization:** {codebase_breakdown['code_organization']}\n\n")
+        
         # Additional Notes
         f.write("## Additional Notes\n\n")
 
