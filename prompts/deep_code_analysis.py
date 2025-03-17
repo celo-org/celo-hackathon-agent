@@ -23,14 +23,14 @@ Provide a comprehensive analysis that covers:
 6. Architecture Patterns: Identify architectural patterns (MVC, microservices, event-driven, etc.).
 
 Respond in JSON format with the following structure:
-```json
-{
-    "codebase_breakdown": {
+
+{{
+    "codebase_breakdown": {{
         "structure": "description of codebase structure",
         "components": ["component1", "component2"],
         "interactions": "how components interact",
         "code_organization": "description of code organization"
-    },
+    }},
     "implemented_features": [
         "Detailed description of feature 1",
         "Detailed description of feature 2"
@@ -52,8 +52,7 @@ Respond in JSON format with the following structure:
         "Pattern 2"
     ],
     "additional_insights": "Any other important insights about the codebase"
-}
-```
+}}
 
 Make sure your response is a properly formatted JSON object that can be parsed using json.loads().
 """

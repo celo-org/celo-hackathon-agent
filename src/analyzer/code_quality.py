@@ -268,13 +268,17 @@ class CodeQualityAnalyzer:
 
         # Create prompt for code quality analysis
         try:
-            # Use a simpler prompt template approach
-            combined_prompt = CODE_QUALITY_PROMPT + "\n\n" + HUMAN_CODE_QUALITY_PROMPT
-            quality_prompt = ChatPromptTemplate.from_template(combined_prompt)
-
-            # Run analysis with AI model
-            analysis_chain = quality_prompt | self.llm | StrOutputParser()
-            analysis_result = analysis_chain.invoke({"code_samples": code_sample_text})
+            # Create a very simple prompt string manually to avoid template issues
+            prompt_text = CODE_QUALITY_PROMPT + "\n\n" + "Analyze the following code samples:\n\n" + code_sample_text + "\n\nProvide your quality assessment in JSON format."
+            
+            # Use direct LLM invocation to minimize potential errors
+            modified_llm = self.llm
+            if hasattr(self.llm, 'temperature'):
+                # Use a lower temperature for more consistent results
+                modified_llm = self.llm.with_config(temperature=0.1)
+                
+            # Run analysis with direct invocation
+            analysis_result = modified_llm.invoke(prompt_text).content
 
             # Attempt to extract JSON from response
             # Sometimes the model returns markdown-formatted JSON with ```json tags

@@ -157,7 +157,7 @@ class CeloIntegrationDetector:
                 f"Error in AI estimation of Celo integration: {str(e)}"
             )
 
-    @with_timeout(60)
+    @with_timeout(90)  # Increase timeout to 90 seconds
     def check_integration(
         self, repo, repo_owner: str, repo_name: str
     ) -> CeloIntegrationResult:
@@ -354,26 +354,45 @@ class CeloIntegrationDetector:
         """
         if not self.llm:
             return None
+            
+        # If we have too many evidence items, limit to the first 10 to avoid overwhelming the API
+        if len(evidence) > 10:
+            limited_evidence = evidence[:10]
+            evidence_note = f" (showing 10 of {len(evidence)} items)"
+        else:
+            limited_evidence = evidence
+            evidence_note = ""
 
         try:
-            # Create prompt for Celo integration analysis
-            celo_analysis_prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("system", CELO_ANALYSIS_PROMPT),
-                    ("human", HUMAN_CELO_ANALYSIS_PROMPT),
-                ]
-            )
-
+            # Use a simpler template approach to avoid prompt issues
+            combined_prompt = CELO_ANALYSIS_PROMPT + "\n\n" + HUMAN_CELO_ANALYSIS_PROMPT
+            celo_analysis_prompt = ChatPromptTemplate.from_template(combined_prompt)
+            
             # Format evidence for the prompt
             evidence_str = "\n".join(
-                [f"- Found '{e['keyword']}' in {e['file']}" for e in evidence]
-            )
+                [f"- Found '{e['keyword']}' in {e['file']}" for e in limited_evidence]
+            ) + evidence_note
 
+            # Run analysis with the AI model, with a lower temperature for more reliability
+            # Use a slightly modified model configuration for this specific task
+            modified_llm = self.llm
+            if hasattr(self.llm, 'temperature'):
+                modified_llm = self.llm.with_config(temperature=0.1)
+                
             # Run analysis with the AI model
-            analysis_chain = celo_analysis_prompt | self.llm | StrOutputParser()
+            analysis_chain = celo_analysis_prompt | modified_llm | StrOutputParser()
             analysis = analysis_chain.invoke({"evidence": evidence_str})
 
             return analysis
         except Exception as e:
             print(f"Error in Celo integration analysis: {str(e)}")
-            return None
+            # Provide a basic fallback analysis without using the LLM
+            keywords_found = set(e['keyword'] for e in evidence)
+            files_with_evidence = set(e['file'] for e in evidence)
+            
+            fallback_analysis = (
+                f"Found {len(evidence)} references to Celo in {len(files_with_evidence)} files. "
+                f"Keywords detected: {', '.join(keywords_found)}. "
+                "This repository appears to integrate with the Celo blockchain."
+            )
+            return fallback_analysis

@@ -30,7 +30,7 @@ class DeepCodeAnalyzer:
         self.config = config
         self.llm = llm
 
-    @with_timeout(120)  # Allow 2 minutes for deep analysis
+    @with_timeout(180)  # Allow 3 minutes for deep analysis
     def analyze_codebase(self, code_samples: List[Dict[str, str]]) -> DeepCodeAnalysisResult:
         """
         Analyze codebase structure and features using AI.
@@ -70,14 +70,17 @@ class DeepCodeAnalyzer:
 
         # Create prompt for deep code analysis
         try:
-            # Use a simpler prompt template to avoid variable issues
-            analysis_prompt = ChatPromptTemplate.from_template(
-                DEEP_CODE_ANALYSIS_PROMPT + "\n\n" + HUMAN_DEEP_CODE_ANALYSIS_PROMPT
-            )
-
-            # Run analysis with AI model
-            analysis_chain = analysis_prompt | self.llm | StrOutputParser()
-            analysis_result = analysis_chain.invoke({"code_samples": code_sample_text})
+            # Create a very simple prompt string manually to avoid template issues
+            prompt_text = DEEP_CODE_ANALYSIS_PROMPT + "\n\n" + "Analyze the following code samples:\n\n" + code_sample_text + "\n\nProvide your deep code analysis in JSON format."
+            
+            # Use direct LLM invocation to minimize potential errors
+            modified_llm = self.llm
+            if hasattr(self.llm, 'temperature'):
+                # Use a lower temperature for more consistent results
+                modified_llm = self.llm.with_config(temperature=0.1)
+                
+            # Run analysis with direct invocation
+            analysis_result = modified_llm.invoke(prompt_text).content
 
             # Attempt to extract JSON from response
             # Sometimes the model returns markdown-formatted JSON with ```json tags
