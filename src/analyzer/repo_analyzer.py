@@ -20,102 +20,119 @@ from src.utils.logger import logger
 
 # System prompt template for repository analysis
 SYSTEM_PROMPT = """
-You are an expert code reviewer and software architect specializing in blockchain applications, particularly those built on the Celo platform.
-
-Your task is to thoroughly analyze the provided GitHub repository data and generate a comprehensive analysis report.
+You are an expert code reviewer, software architect, and blockchain specialist with deep knowledge of the Celo ecosystem. Your task is to thoroughly analyze the provided GitHub repository and generate a comprehensive technical assessment.
 
 ABOUT CELO:
-Celo is a mobile-first blockchain platform focused on making financial tools accessible to anyone with a mobile phone. Key technologies include:
-- ContractKit: JavaScript library for interacting with Celo
-- Celo wallet and identity protocols
-- Stable tokens: cUSD, cEUR, cREAL
-- Mobile-first design principles
-- Social payments using phone numbers as identifiers
+Celo is a mobile-first blockchain platform focused on financial inclusion through:
+- Mobile-first design with phone number-based addressing
+- Stable value currencies (cUSD, cEUR, cREAL, etc.)
+- ContractKit: JavaScript SDK for Celo integration
+- Lightweight identity protocol and Valora wallet
+- Fast, low-cost transactions with proof-of-stake consensus
+- DeFi capabilities including staking, lending, and swapping
+- On/off ramps for fiat currencies
+- Developer tools for building decentralized applications
 
 ANALYSIS INSTRUCTIONS:
-1. Repository Type Detection:
-   - Identify the type of repository (web app, mobile app, smart contract, API, library, etc.)
-   - Determine the main programming languages and frameworks used
 
-2. Code Quality Assessment:
-   - Evaluate code readability, standards compliance, complexity, and testing coverage
-   - Provide a score for each area (0-100) with detailed reasoning
+1. Repository Classification (10%):
+   - Determine repository type (dApp, smart contracts, library, tool, etc.)
+   - Identify primary languages, frameworks, and technologies
+   - Assess repository completeness and production-readiness
 
-3. Celo Integration Analysis:
-   - Determine if and how the project integrates with Celo blockchain
-   - Look for Celo dependencies, contract imports, and Celo-specific code
-   - Identify which Celo features are being utilized
+2. Architecture Analysis (20%):
+   - Evaluate overall architectural approach
+   - Assess component organization and interaction patterns
+   - Identify design patterns and architectural principles in use
+   - Analyze data flow and state management
 
-4. Architecture Evaluation:
-   - Analyze the overall system architecture
-   - Identify design patterns and architectural approaches
-   - Evaluate code organization and module structure
+3. Code Quality Assessment (25%):
+   - Evaluate code readability, formatting, and documentation
+   - Assess adherence to language-specific best practices
+   - Analyze code complexity, modularity, and reusability
+   - Evaluate error handling, input validation, and edge cases
+   - Examine testing approach, coverage, and quality
 
-5. Key Findings:
-   - Highlight 3-5 important observations about the codebase
-   - Note particularly good implementations or areas of concern
+4. Celo Integration Analysis (30%):
+   - Determine presence and depth of Celo blockchain integration
+   - Identify specific Celo features being leveraged
+   - Assess correctness of Celo-specific implementation
+   - Evaluate security practices in blockchain interactions
+   - Analyze gas optimization in smart contracts (if applicable)
 
-6. Improvement Recommendations:
-   - Suggest concrete ways to improve the code or architecture
-   - Prioritize recommendations by potential impact
-
-// Code Examples section removed
-
-8. Confidence Assessment:
-   - For each section of your analysis, indicate your confidence level (High/Medium/Low)
-   - Explain what factors influenced your confidence rating
+5. Key Findings & Recommendations (15%):
+   - Highlight 3-5 significant strengths of the implementation
+   - Identify 3-5 critical areas for improvement
+   - Provide specific, actionable recommendations
+   - Assess project potential and technical viability
 
 OUTPUT FORMAT:
-Return your analysis as a JSON object with the following structure:
+Return your analysis as a structured JSON object with this exact format:
 
 {
   "repo_type": {
-    "type": "string", 
-    "languages": ["list", "of", "languages"],
-    "frameworks": ["list", "of", "frameworks"]
+    "type": "Repository type (dApp, smart contract, library, etc.)",
+    "languages": ["Primary language", "Secondary language"],
+    "frameworks": ["Framework1", "Framework2"],
+    "completeness": "Assessment of project completeness (0-100%)",
+    "production_readiness": "Assessment of production readiness (0-100%)"
   },
   "code_quality": {
     "overall_score": number,
-    "readability": {"score": number, "analysis": "string"},
-    "standards": {"score": number, "analysis": "string"},
-    "complexity": {"score": number, "analysis": "string"},
-    "testing": {"score": number, "analysis": "string"}
+    "readability": {"score": number, "analysis": "Detailed analysis with examples"},
+    "standards": {"score": number, "analysis": "Detailed analysis with examples"},
+    "complexity": {"score": number, "analysis": "Detailed analysis with examples"},
+    "testing": {"score": number, "analysis": "Detailed analysis with examples"}
   },
   "celo_integration": {
     "integrated": boolean,
-    "features_used": ["list", "of", "celo", "features"],
-    "evidence": ["list", "of", "evidence", "found"],
-    "integration_quality": {"score": number, "analysis": "string"}
+    "integration_depth": "none|minimal|moderate|deep",
+    "features_used": [
+      {"feature": "Celo feature name", "implementation_quality": number, "notes": "Implementation details"}
+    ],
+    "security_assessment": {"score": number, "findings": ["Security finding 1", "Security finding 2"]},
+    "gas_optimization": {"score": number, "findings": ["Optimization note 1", "Optimization note 2"]},
+    "evidence": ["File path or code snippet showing Celo integration"],
+    "overall_score": number
   },
   "architecture": {
-    "patterns": ["list", "of", "design", "patterns"],
-    "structure_quality": {"score": number, "analysis": "string"},
-    "modularity": {"score": number, "analysis": "string"}
+    "pattern": "Primary architectural pattern",
+    "components": [
+      {"name": "Component name", "purpose": "Component purpose", "quality": number}
+    ],
+    "data_flow": "Description of data flow through the system",
+    "strengths": ["Architectural strength 1", "Architectural strength 2"],
+    "weaknesses": ["Architectural weakness 1", "Architectural weakness 2"],
+    "overall_score": number
   },
   "findings": {
-    "strengths": ["list", "of", "strengths"],
-    "concerns": ["list", "of", "concerns"],
-    "overall_assessment": "string"
+    "strengths": [
+      {"description": "Strength description", "impact": "High/Medium/Low", "details": "Detailed explanation"}
+    ],
+    "concerns": [
+      {"description": "Weakness description", "impact": "High/Medium/Low", "details": "Detailed explanation"}
+    ],
+    "overall_assessment": "Overall assessment of the project"
   },
   "recommendations": [
-    {"priority": "High/Medium/Low", "description": "string", "justification": "string"},
-    ...
+    {"priority": "High/Medium/Low", "description": "Recommendation", "justification": "Why this matters"}
   ],
-  // Code examples section removed
   "confidence_levels": {
-    "code_quality": {"level": "High/Medium/Low", "reasoning": "string"},
-    "celo_integration": {"level": "High/Medium/Low", "reasoning": "string"},
-    "architecture": {"level": "High/Medium/Low", "reasoning": "string"}
+    "code_quality": {"level": "High/Medium/Low", "reasoning": "Reasoning for confidence level"},
+    "celo_integration": {"level": "High/Medium/Low", "reasoning": "Reasoning for confidence level"},
+    "architecture": {"level": "High/Medium/Low", "reasoning": "Reasoning for confidence level"}
   }
 }
 
-IMPORTANT NOTES:
-- Base your analysis ONLY on the code provided, not external assumptions
-- Be specific and provide concrete examples whenever possible
-- Maintain objectivity and professional tone throughout
-- If you're uncertain about any aspect, indicate that clearly in your confidence assessment
-- Focus on substantive issues rather than stylistic preferences
-- Consider the project's apparent goals when making recommendations
+IMPORTANT GUIDELINES:
+- Base your analysis solely on the provided code and repository information
+- Provide specific code examples and file paths to support your findings
+- Balance technical detail with clear explanations
+- Be honest but constructive in your assessment
+- Consider the apparent purpose and audience of the project
+- If Celo integration is minimal or absent, provide suggestions for integration
+- Focus on substantive technical issues rather than stylistic preferences
+- Clearly indicate your confidence level in each area of analysis
 """
 
 
@@ -149,8 +166,10 @@ class RepositoryAnalyzer:
         self.llm = None
         self.model_provider = model_provider or self.config.default_model
 
-        logger.debug(f"Initializing repository analyzer with model provider: {self.model_provider}")
-        
+        logger.debug(
+            f"Initializing repository analyzer with model provider: {self.model_provider}"
+        )
+
         # Initialize LLM based on provider
         if self.model_provider == "anthropic":
             self._init_anthropic_model()
@@ -159,7 +178,9 @@ class RepositoryAnalyzer:
         elif self.model_provider == "google":
             self._init_google_model()
         else:
-            logger.warn(f"Unknown model provider '{self.model_provider}'. Falling back to default.")
+            logger.warn(
+                f"Unknown model provider '{self.model_provider}'. Falling back to default."
+            )
             self._init_anthropic_model()
 
         # Initialize GitHub repository handler
@@ -170,7 +191,7 @@ class RepositoryAnalyzer:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
-            
+
         logger.info(f"Using Anthropic model: {self.config.model_name}")
         self.llm = ChatAnthropic(
             model=self.config.model_name,
@@ -192,7 +213,7 @@ class RepositoryAnalyzer:
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is not set")
-            
+
         logger.info("Using Google Gemini model: gemini-2.0-flash")
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
@@ -224,32 +245,34 @@ class RepositoryAnalyzer:
             # Collect code samples with progress updates
             if callback:
                 callback("Collecting code samples")
-                
+
             start_time = time.time()
             file_metrics, code_samples = self.github_repo.collect_code_samples(
                 progress_callback=callback
             )
             elapsed = time.time() - start_time
-            
+
             if callback:
                 callback(f"Collected code samples in {elapsed:.2f}s")
-            
+
             logger.debug(f"Code samples collected in {elapsed:.2f}s")
 
             # Process collected data to find Celo integration evidence
             celo_evidence = []
             if callback:
                 callback("Searching for blockchain integration evidence")
-                
+
             start_time = time.time()
             for keyword in self.config.celo_keywords:
                 keyword_found = self.github_repo.search_files_for_keywords(
                     self.github_repo.code_sample_files, [keyword]
                 )
                 celo_evidence.extend(keyword_found)
-                
+
             elapsed = time.time() - start_time
-            logger.debug(f"Found {len(celo_evidence)} blockchain integration evidence points in {elapsed:.2f}s")
+            logger.debug(
+                f"Found {len(celo_evidence)} blockchain integration evidence points in {elapsed:.2f}s"
+            )
 
             # Generate digest for LLM analysis
             if callback:
@@ -260,10 +283,12 @@ class RepositoryAnalyzer:
                 repo_details, file_metrics, code_samples, celo_evidence
             )
             elapsed = time.time() - start_time
-            
+
             # Log digest size
-            logger.debug(f"Repository digest generated in {elapsed:.2f}s - Size: {len(repo_digest)} characters")
-            
+            logger.debug(
+                f"Repository digest generated in {elapsed:.2f}s - Size: {len(repo_digest)} characters"
+            )
+
             if len(repo_digest) < 500:
                 logger.warn("Repository digest is suspiciously small!")
                 logger.debug(f"Full digest: {repo_digest}")
@@ -271,7 +296,7 @@ class RepositoryAnalyzer:
             # Analyze digest with LLM
             if callback:
                 callback("Analyzing repository with AI model")
-            
+
             repo_analysis = self._analyze_with_llm(repo_digest, callback)
 
             # Combine all analysis components into final result
@@ -311,21 +336,21 @@ class RepositoryAnalyzer:
         # Use callback to report progress if provided
         if callback:
             callback(f"Fetching repository data for {repo_url}")
-            
+
         start_time = time.time()
-        
+
         # Setup the repository
         self.github_repo.setup_repository(repo_url)
 
         # Get repository details
         repo_details = self.github_repo.get_repository_details()
-        
+
         elapsed = time.time() - start_time
         if callback:
             callback(f"Fetched repository data in {elapsed:.2f}s")
-            
+
         logger.debug(f"Repository data fetched in {elapsed:.2f}s")
-        
+
         return repo_details
 
     def _generate_repo_digest(
@@ -384,7 +409,7 @@ class RepositoryAnalyzer:
             if self.verbose:
                 logger.debug(f"Adding sample {i+1}, length: {len(sample)}")
             digest += f"{sample}\n"
-            
+
         # Log digest length for debugging
         logger.debug(f"Total digest length: {len(digest)} characters")
         if self.verbose:
@@ -409,7 +434,7 @@ class RepositoryAnalyzer:
         try:
             # Count input tokens - just estimate for non-Anthropic
             start_time = time.time()
-            
+
             if self.verbose:
                 input_tokens = 0
                 if self.model_provider == "anthropic":
@@ -417,28 +442,36 @@ class RepositoryAnalyzer:
                 else:
                     # Rough estimate: 4 chars per token
                     input_tokens = (len(SYSTEM_PROMPT) + len(repo_digest)) // 4
-                
+
                 logger.debug(f"Input tokens (estimated): {input_tokens}")
-                
+
                 if callback:
-                    callback(f"Sending approximately {input_tokens} tokens to LLM for analysis")
+                    callback(
+                        f"Sending approximately {input_tokens} tokens to LLM for analysis"
+                    )
 
             # Track token usage with OpenAI callback (works for multiple providers)
             with get_openai_callback() as cb:
                 try:
                     # No need to truncate for Gemini with 900k token limit
-                    logger.debug(f"Repository digest length: {len(repo_digest)} characters")
-                    
+                    logger.debug(
+                        f"Repository digest length: {len(repo_digest)} characters"
+                    )
+
                     # We estimate about 4 characters per token, so max 3.6M characters
                     if len(repo_digest) > 3600000:  # Only warn at extreme sizes
-                        logger.warn(f"Repository digest is extremely large ({len(repo_digest)} chars). May approach model limits.")
-                    
+                        logger.warn(
+                            f"Repository digest is extremely large ({len(repo_digest)} chars). May approach model limits."
+                        )
+
                     # Get LLM response
-                    logger.debug(f"Sending prompt to LLM: system={len(SYSTEM_PROMPT)} chars, user={len(repo_digest)} chars")
-                    
+                    logger.debug(
+                        f"Sending prompt to LLM: system={len(SYSTEM_PROMPT)} chars, user={len(repo_digest)} chars"
+                    )
+
                     if callback:
                         callback("Waiting for AI model response...")
-                        
+
                     response = self.llm.invoke(
                         [
                             {"role": "system", "content": SYSTEM_PROMPT},
@@ -446,7 +479,7 @@ class RepositoryAnalyzer:
                         ]
                     )
                     content = response.content
-                    
+
                     # Debug output
                     if self.verbose:
                         logger.debug(f"LLM response received. Length: {len(content)}")
@@ -471,7 +504,7 @@ class RepositoryAnalyzer:
             try:
                 if callback:
                     callback("Extracting analysis from AI response")
-                    
+
                 # Extract JSON from response (may be wrapped in markdown code blocks)
                 if "```json" in content:
                     json_str = content.split("```json")[1].split("```")[0].strip()
@@ -479,10 +512,12 @@ class RepositoryAnalyzer:
                     json_str = content.split("```")[1].split("```")[0].strip()
                 else:
                     json_str = content
-                
+
                 # Debug JSON extraction
                 if self.verbose:
-                    logger.debug(f"Extracted JSON string (first 100 chars): {json_str[:100]}...")
+                    logger.debug(
+                        f"Extracted JSON string (first 100 chars): {json_str[:100]}..."
+                    )
 
                 analysis_result = json.loads(json_str)
 
@@ -493,10 +528,10 @@ class RepositoryAnalyzer:
                         "output_tokens": cb.completion_tokens,
                         "total_tokens": cb.total_tokens,
                     }
-                
+
                 elapsed = time.time() - start_time
                 logger.debug(f"LLM analysis completed in {elapsed:.2f}s")
-                
+
                 if callback:
                     callback(f"AI analysis completed in {elapsed:.2f}s")
 
@@ -508,7 +543,11 @@ class RepositoryAnalyzer:
                     callback("Error parsing AI analysis result")
                 return {
                     "error": f"Failed to parse analysis result: {str(json_err)}",
-                    "raw_response": content[:500] + "...(truncated)" if len(content) > 500 else content,
+                    "raw_response": (
+                        content[:500] + "...(truncated)"
+                        if len(content) > 500
+                        else content
+                    ),
                 }
 
         except Exception as e:
