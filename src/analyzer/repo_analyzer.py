@@ -221,9 +221,9 @@ class RepositoryAnalyzer:
         if callback:
             callback(f"Analyzing code quality for {repo_owner}/{repo_name}")
         
-        # Choose analysis method based on repository access
-        if self.github_repo.repo is None:
-            # No repository access, use estimation
+        # With GitIngest, we always have repository data if repo_data is not None
+        if self.github_repo.repo_data is None:
+            # No repository data, use estimation
             if callback:
                 try:
                     return run_with_active_spinner(
@@ -239,7 +239,7 @@ class RepositoryAnalyzer:
             else:
                 return self.code_analyzer.analyze_without_access(repo_owner, repo_name, repo_description)
         else:
-            # Have repository access, analyze code samples
+            # Have repository data from GitIngest, analyze code samples
             if callback:
                 try:
                     # First collect code samples
@@ -284,9 +284,9 @@ class RepositoryAnalyzer:
         if callback:
             callback(f"Checking Celo integration for {repo_owner}/{repo_name}")
         
-        # Choose analysis method based on repository access
-        if self.github_repo.repo is None:
-            # No repository access, use estimation
+        # Choose analysis method based on repository data
+        if self.github_repo.repo_data is None:
+            # No repository data, use estimation
             if callback:
                 try:
                     return run_with_active_spinner(
@@ -307,12 +307,12 @@ class RepositoryAnalyzer:
             else:
                 return self.celo_detector.check_without_access(repo_owner, repo_name, repo_description)
         else:
-            # Have repository access, check directly
+            # Have repository data from GitIngest, check directly
             if callback:
                 try:
                     return run_with_active_spinner(
                         func=self.celo_detector.check_integration,
-                        args=(self.github_repo.repo, repo_owner, repo_name),
+                        args=(self.github_repo, repo_owner, repo_name),
                         message=f"Checking Celo integration in {repo_owner}/{repo_name}",
                         callback=callback
                     )
@@ -327,7 +327,7 @@ class RepositoryAnalyzer:
                     }
             else:
                 try:
-                    return self.celo_detector.check_integration(self.github_repo.repo, repo_owner, repo_name)
+                    return self.celo_detector.check_integration(self.github_repo, repo_owner, repo_name)
                 except Exception:
                     has_celo_in_name = "celo" in repo_name.lower()
                     return {
@@ -354,11 +354,11 @@ class RepositoryAnalyzer:
                 callback(f"Skipping deep code analysis for {repo_owner}/{repo_name} - LLM not available")
             return self.deep_code_analyzer._create_fallback_analysis("LLM not available for deep analysis")
         
-        # Only proceed if we have repository access
-        if self.github_repo.repo is None:
+        # Only proceed if we have repository data
+        if self.github_repo.repo_data is None:
             if callback:
-                callback(f"Skipping deep code analysis for {repo_owner}/{repo_name} - repository access not available")
-            return self.deep_code_analyzer._create_fallback_analysis("Repository access not available for deep analysis")
+                callback(f"Skipping deep code analysis for {repo_owner}/{repo_name} - repository data not available")
+            return self.deep_code_analyzer._create_fallback_analysis("Repository data not available for deep analysis")
         
         if callback:
             callback(f"Performing deep code analysis for {repo_owner}/{repo_name}")

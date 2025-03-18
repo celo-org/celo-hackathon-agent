@@ -6,10 +6,10 @@ langchain_anthropic
 langchain-openai
 langchain-google-genai
 openpyxl
-pygithub
 PyYAML
 python-dotenv
 langgraph
 tqdm
 colorama
 inquirer
+gitingest

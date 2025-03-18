@@ -14,7 +14,6 @@ class Config:
     weights: Dict[str, float]
     celo_keywords: List[str]
     celo_files: List[str]
-    github_token: str
     default_model: str = "anthropic"
     model_name: str = "claude-3-haiku-20240307"
     temperature: float = 0.1
@@ -32,9 +31,6 @@ class Config:
         """
         with open(config_path, 'r') as f:
             config_data = json.load(f)
-            
-        # Get GitHub token from environment or config
-        github_token = os.environ.get("GITHUB_TOKEN") or config_data.get("github_token", "")
         
         # Get default model provider from config
         default_model = config_data.get("default_model", "anthropic")
@@ -43,6 +39,5 @@ class Config:
             weights=config_data["weights"],
             celo_keywords=config_data["celo_keywords"],
             celo_files=config_data["celo_files"],
-            github_token=github_token,
             default_model=default_model
         )
