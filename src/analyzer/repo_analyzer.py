@@ -10,13 +10,13 @@ from typing import Dict, Any, Optional, Callable
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.callbacks import get_openai_callback
+from langchain_community.callbacks.manager import get_openai_callback
 import anthropic
 
 from src.models.config import Config
 from src.models.types import RepositoryAnalysisResult
 from src.analyzer.github_repo import GitHubRepository
-from src.utils.spinner import run_with_active_spinner
+from src.utils.logger import logger
 
 # System prompt template for repository analysis
 SYSTEM_PROMPT = """
@@ -149,6 +149,8 @@ class RepositoryAnalyzer:
         self.llm = None
         self.model_provider = model_provider or self.config.default_model
 
+        logger.debug(f"Initializing repository analyzer with model provider: {self.model_provider}")
+        
         # Initialize LLM based on provider
         if self.model_provider == "anthropic":
             self._init_anthropic_model()
@@ -157,9 +159,7 @@ class RepositoryAnalyzer:
         elif self.model_provider == "google":
             self._init_google_model()
         else:
-            print(
-                f"Warning: Unknown model provider '{self.model_provider}'. Falling back to default."
-            )
+            logger.warn(f"Unknown model provider '{self.model_provider}'. Falling back to default.")
             self._init_anthropic_model()
 
         # Initialize GitHub repository handler
@@ -171,7 +171,7 @@ class RepositoryAnalyzer:
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
             
-        print(f"Using model: {self.config.model_name}")
+        logger.info(f"Using Anthropic model: {self.config.model_name}")
         self.llm = ChatAnthropic(
             model=self.config.model_name,
             temperature=self.config.temperature,
@@ -180,6 +180,7 @@ class RepositoryAnalyzer:
 
     def _init_openai_model(self):
         """Initialize OpenAI model."""
+        logger.info("Using OpenAI model: gpt-4")
         self.llm = ChatOpenAI(
             model_name="gpt-4",
             temperature=self.config.temperature,
@@ -192,7 +193,7 @@ class RepositoryAnalyzer:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is not set")
             
-        print(f"Using Google Gemini model: gemini-2.0-flash")
+        logger.info("Using Google Gemini model: gemini-2.0-flash")
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash",
             temperature=self.config.temperature,
@@ -221,38 +222,55 @@ class RepositoryAnalyzer:
             analysis_result["repo_details"] = repo_details
 
             # Collect code samples with progress updates
-            file_metrics, code_samples = run_with_active_spinner(
-                self.github_repo.collect_code_samples,
-                kwargs={"progress_callback": callback},
-                message="Collecting code samples",
-                callback=callback,
+            if callback:
+                callback("Collecting code samples")
+                
+            start_time = time.time()
+            file_metrics, code_samples = self.github_repo.collect_code_samples(
+                progress_callback=callback
             )
+            elapsed = time.time() - start_time
+            
+            if callback:
+                callback(f"Collected code samples in {elapsed:.2f}s")
+            
+            logger.debug(f"Code samples collected in {elapsed:.2f}s")
 
             # Process collected data to find Celo integration evidence
             celo_evidence = []
+            if callback:
+                callback("Searching for blockchain integration evidence")
+                
+            start_time = time.time()
             for keyword in self.config.celo_keywords:
                 keyword_found = self.github_repo.search_files_for_keywords(
                     self.github_repo.code_sample_files, [keyword]
                 )
                 celo_evidence.extend(keyword_found)
+                
+            elapsed = time.time() - start_time
+            logger.debug(f"Found {len(celo_evidence)} blockchain integration evidence points in {elapsed:.2f}s")
 
             # Generate digest for LLM analysis
             if callback:
                 callback("Generating repository digest for AI analysis")
 
+            start_time = time.time()
             repo_digest = self._generate_repo_digest(
                 repo_details, file_metrics, code_samples, celo_evidence
             )
+            elapsed = time.time() - start_time
+            
+            # Log digest size
+            logger.debug(f"Repository digest generated in {elapsed:.2f}s - Size: {len(repo_digest)} characters")
+            
+            if len(repo_digest) < 500:
+                logger.warn("Repository digest is suspiciously small!")
+                logger.debug(f"Full digest: {repo_digest}")
 
             # Analyze digest with LLM
             if callback:
-                callback("Analyzing repository with AI")
-                
-            # Print digest size for debugging
-            print(f"Repository digest size: {len(repo_digest)} characters")
-            if len(repo_digest) < 500:
-                print("Warning: Repository digest is suspiciously small!")
-                print(f"Full digest: {repo_digest}")
+                callback("Analyzing repository with AI model")
             
             repo_analysis = self._analyze_with_llm(repo_digest, callback)
 
@@ -274,7 +292,7 @@ class RepositoryAnalyzer:
 
         except Exception as e:
             error_msg = f"Error analyzing repository: {str(e)}"
-            print(error_msg)
+            logger.error(error_msg)
             return {"error": error_msg}
 
     def _get_repository_details_safely(
@@ -290,21 +308,24 @@ class RepositoryAnalyzer:
         Returns:
             Repository details
         """
+        # Use callback to report progress if provided
+        if callback:
+            callback(f"Fetching repository data for {repo_url}")
+            
+        start_time = time.time()
+        
+        # Setup the repository
+        self.github_repo.setup_repository(repo_url)
 
-        def _get_repo_details():
-            # Setup the repository
-            self.github_repo.setup_repository(repo_url)
-
-            # Get repository details
-            return self.github_repo.get_repository_details()
-
-        # Run with spinner
-        repo_details = run_with_active_spinner(
-            _get_repo_details,
-            message=f"Fetching repository data for {repo_url}",
-            callback=callback,
-        )
-
+        # Get repository details
+        repo_details = self.github_repo.get_repository_details()
+        
+        elapsed = time.time() - start_time
+        if callback:
+            callback(f"Fetched repository data in {elapsed:.2f}s")
+            
+        logger.debug(f"Repository data fetched in {elapsed:.2f}s")
+        
         return repo_details
 
     def _generate_repo_digest(
@@ -351,22 +372,24 @@ class RepositoryAnalyzer:
 
         # Add Celo integration evidence if found
         if celo_evidence:
-            digest += "## Celo Integration Evidence\n"
+            digest += "## Blockchain Integration Evidence\n"
             for evidence in celo_evidence:
                 digest += f"- Found keyword '{evidence['keyword']}' in file '{evidence['file']}'\n"
             digest += "\n"
 
         # Add code samples
         digest += "## Code Samples\n"
-        print(f"Adding {len(code_samples)} code samples to digest")
+        logger.debug(f"Adding {len(code_samples)} code samples to digest")
         for i, sample in enumerate(code_samples):
-            print(f"Adding sample {i+1}, length: {len(sample)}")
+            if self.verbose:
+                logger.debug(f"Adding sample {i+1}, length: {len(sample)}")
             digest += f"{sample}\n"
             
-        # Print digest length for debugging
-        print(f"Total digest length: {len(digest)} characters")
-        print(f"Digest first 200 chars: {digest[:200]}")
-        print(f"Digest last 200 chars: {digest[-200:]}")
+        # Log digest length for debugging
+        logger.debug(f"Total digest length: {len(digest)} characters")
+        if self.verbose:
+            logger.debug(f"Digest first 200 chars: {digest[:200]}")
+            logger.debug(f"Digest last 200 chars: {digest[-200:]}")
 
         return digest
 
@@ -385,6 +408,8 @@ class RepositoryAnalyzer:
         """
         try:
             # Count input tokens - just estimate for non-Anthropic
+            start_time = time.time()
+            
             if self.verbose:
                 input_tokens = 0
                 if self.model_provider == "anthropic":
@@ -393,7 +418,7 @@ class RepositoryAnalyzer:
                     # Rough estimate: 4 chars per token
                     input_tokens = (len(SYSTEM_PROMPT) + len(repo_digest)) // 4
                 
-                print(f"Input tokens (estimated): {input_tokens}")
+                logger.debug(f"Input tokens (estimated): {input_tokens}")
                 
                 if callback:
                     callback(f"Sending approximately {input_tokens} tokens to LLM for analysis")
@@ -402,13 +427,18 @@ class RepositoryAnalyzer:
             with get_openai_callback() as cb:
                 try:
                     # No need to truncate for Gemini with 900k token limit
-                    print(f"Repository digest length: {len(repo_digest)} characters")
+                    logger.debug(f"Repository digest length: {len(repo_digest)} characters")
+                    
                     # We estimate about 4 characters per token, so max 3.6M characters
                     if len(repo_digest) > 3600000:  # Only warn at extreme sizes
-                        print(f"Warning: Repository digest is extremely large ({len(repo_digest)} chars). May approach Gemini's limits.")
+                        logger.warn(f"Repository digest is extremely large ({len(repo_digest)} chars). May approach model limits.")
                     
                     # Get LLM response
-                    print(f"Sending prompt to LLM: system={len(SYSTEM_PROMPT)} chars, user={len(repo_digest)} chars")
+                    logger.debug(f"Sending prompt to LLM: system={len(SYSTEM_PROMPT)} chars, user={len(repo_digest)} chars")
+                    
+                    if callback:
+                        callback("Waiting for AI model response...")
+                        
                     response = self.llm.invoke(
                         [
                             {"role": "system", "content": SYSTEM_PROMPT},
@@ -419,8 +449,8 @@ class RepositoryAnalyzer:
                     
                     # Debug output
                     if self.verbose:
-                        print(f"LLM response received. Length: {len(content)}")
-                        print(f"Response starts with: {content[:100]}...")
+                        logger.debug(f"LLM response received. Length: {len(content)}")
+                        logger.debug(f"Response starts with: {content[:100]}...")
 
                     # Log token usage
                     if self.verbose:
@@ -428,17 +458,20 @@ class RepositoryAnalyzer:
                             callback(
                                 f"Analysis completed. Input tokens: {cb.prompt_tokens}, Output tokens: {cb.completion_tokens}"
                             )
-                        print(
+                        logger.debug(
                             f"Token usage - Input: {cb.prompt_tokens}, Output: {cb.completion_tokens}, Total: {cb.total_tokens}"
                         )
                 except Exception as api_error:
-                    print(f"API call error: {str(api_error)}")
+                    logger.error(f"API call error: {str(api_error)}")
                     if callback:
                         callback(f"Error calling AI model: {str(api_error)}")
                     return {"error": f"API call failed: {str(api_error)}"}
 
             # Parse JSON from response
             try:
+                if callback:
+                    callback("Extracting analysis from AI response")
+                    
                 # Extract JSON from response (may be wrapped in markdown code blocks)
                 if "```json" in content:
                     json_str = content.split("```json")[1].split("```")[0].strip()
@@ -449,7 +482,7 @@ class RepositoryAnalyzer:
                 
                 # Debug JSON extraction
                 if self.verbose:
-                    print(f"Extracted JSON string (first 100 chars): {json_str[:100]}...")
+                    logger.debug(f"Extracted JSON string (first 100 chars): {json_str[:100]}...")
 
                 analysis_result = json.loads(json_str)
 
@@ -460,11 +493,17 @@ class RepositoryAnalyzer:
                         "output_tokens": cb.completion_tokens,
                         "total_tokens": cb.total_tokens,
                     }
+                
+                elapsed = time.time() - start_time
+                logger.debug(f"LLM analysis completed in {elapsed:.2f}s")
+                
+                if callback:
+                    callback(f"AI analysis completed in {elapsed:.2f}s")
 
                 return analysis_result
 
             except json.JSONDecodeError as json_err:
-                print(f"Error: Failed to parse JSON from LLM response: {str(json_err)}")
+                logger.error(f"Failed to parse JSON from LLM response: {str(json_err)}")
                 if callback:
                     callback("Error parsing AI analysis result")
                 return {
@@ -474,7 +513,7 @@ class RepositoryAnalyzer:
 
         except Exception as e:
             error_msg = f"Error in LLM analysis: {str(e)}"
-            print(error_msg)
+            logger.error(error_msg)
             if callback:
                 callback(f"Error in AI analysis: {str(e)}")
             return {"error": error_msg}

@@ -10,6 +10,7 @@ from gitingest import ingest
 
 from src.models.types import RepoDetails
 from src.models.config import Config
+from src.utils.logger import logger
 
 
 class GitHubRepository:
@@ -87,7 +88,7 @@ class GitHubRepository:
         try:
             # Use gitingest to get repository content
             start_time = time.time()
-            print(f"Fetching repository data for {repo_owner}/{repo_name}... \n")
+            logger.debug(f"Fetching repository data for {repo_owner}/{repo_name}")
 
             # Convert list to set before passing to ingest
             exclude_patterns_set = set(exclude_patterns)
@@ -95,28 +96,26 @@ class GitHubRepository:
                 repo_url, exclude_patterns=exclude_patterns_set
             )
 
-            print(f"summary: {summary}")
-            print(f"tree data length: {len(tree) if tree else 0}")
-            print(f"content data length: {len(content) if content else 0}")
+            logger.debug(f"Summary length: {len(summary) if summary else 0} chars")
+            logger.debug(f"Tree data length: {len(tree) if tree else 0} chars")
+            logger.debug(f"Content data length: {len(content) if content else 0} chars")
             
             # Log beginning and end of content for debugging
             if content:
-                print(f"Content starts with: {content[:100]}...")
-                print(f"Content ends with: ...{content[-100:]}")
+                logger.debug(f"Content starts with: {content[:100]}...")
+                logger.debug(f"Content ends with: ...{content[-100:]}")
             
             # If content is empty but tree has data, add dummy content
             if not content and tree:
-                print("Warning: Empty content but tree data exists. Creating placeholder content.")
+                logger.warn("Empty content but tree data exists. Creating placeholder content.")
                 content = f"```bash\ngit clone {repo_url}\n```"
 
             self.repo_data = {"summary": summary, "tree": tree, "content": content}
             elapsed = time.time() - start_time
-            print(
-                f"Fetched repository data for {repo_owner}/{repo_name} in {elapsed:.1f}s"
-            )
+            logger.debug(f"Fetched repository data for {repo_owner}/{repo_name} in {elapsed:.1f}s")
 
         except Exception as e:
-            print(f"Error fetching repository with Gitingest: {str(e)}")
+            logger.error(f"Error fetching repository with Gitingest: {str(e)}")
             self.repo_data = None
 
         return repo_owner, repo_name
@@ -318,6 +317,7 @@ class GitHubRepository:
         """
         if self.repo_data is None:
             # Return empty results if no repo data
+            logger.warn("No repository data available for code sample collection")
             return {
                 "file_count": 0,
                 "test_file_count": 0,
@@ -365,8 +365,8 @@ class GitHubRepository:
                 progress_callback(f"Extracting code samples from {file_count} files")
 
             # Debug the content
-            print(f"Content length: {len(content)}")
-            print(f"Content first 100 chars: {content[:100]}")
+            logger.debug(f"Content length: {len(content)}")
+            logger.debug(f"Content first 100 chars: {content[:100]}")
             
             # Extract code samples from the content using both patterns
             # Pattern 1: Markdown triple backtick
@@ -378,7 +378,7 @@ class GitHubRepository:
             file_blocks1 = list(re.finditer(file_pattern1, content, re.DOTALL))
             file_blocks2 = list(re.finditer(file_pattern2, content, re.DOTALL))
             
-            print(f"Found {len(file_blocks1)} markdown blocks and {len(file_blocks2)} gitingest blocks in content")
+            logger.debug(f"Found {len(file_blocks1)} markdown blocks and {len(file_blocks2)} gitingest blocks in content")
             
             # Combine results from both patterns
             file_blocks = file_blocks1.copy()
@@ -387,11 +387,11 @@ class GitHubRepository:
             for match in file_blocks2:
                 file_blocks.append(match)
                 
-            print(f"Total file blocks found: {len(file_blocks)}")
+            logger.debug(f"Total file blocks found: {len(file_blocks)}")
             
             # If no file blocks found with markdown syntax, try extracting directly from structure
             if len(file_blocks) == 0:
-                print("No file blocks found with markdown syntax. Attempting direct extraction.")
+                logger.warn("No file blocks found with markdown syntax. Attempting direct extraction.")
                 # Try to extract files from tree structure
                 file_paths = []
                 for line in tree.split('\n'):
@@ -401,36 +401,40 @@ class GitHubRepository:
                 
                 # Take top 10 files for analysis if tree has files but no code blocks found
                 if file_paths:
-                    print(f"Found {len(file_paths)} files in tree structure. Using top 10.")
+                    logger.debug(f"Found {len(file_paths)} files in tree structure. Using top 10.")
                     for file_path in file_paths[:10]:
                         code_samples.append(f"File: {file_path}\n\nNo content available\n\n")
                         self.code_sample_files.append(file_path)
                     
                     # Add a sample command if no real files found to avoid completely empty analysis
                     if not code_samples:
+                        repo_url = f"https://github.com/{self.repo_owner}/{self.repo_name}"
                         code_samples.append(f"File: bash\n\ngit clone {repo_url}\n\n")
                         self.code_sample_files.append("bash")
 
-            # Process all file blocks - no limits since we're using Gemini with 900k tokens
+            # Process all file blocks - no limits since we're using modern LLMs with large context
             for i, match in enumerate(file_blocks):
                 file_path = match.group(1)
                 file_content = match.group(2)
                 
-                print(f"Processing file block {i+1}: {file_path} - content length: {len(file_content)}")
+                logger.debug(f"Processing file block {i+1}: {file_path} - content length: {len(file_content)}")
 
                 # Include all files regardless of size
-                print(f"Including file: {file_path} - size: {len(file_content.strip())} chars")
+                logger.debug(f"Including file: {file_path} - size: {len(file_content.strip())} chars")
                 
                 # No size limits - use full file content
                 
                 # Collect the code sample
                 code_samples.append(f"File: {file_path}\n\n{file_content}\n\n")
                 self.code_sample_files.append(file_path)
-                print(f"Added {file_path} to code samples list")
+                
+                if progress_callback and i % 10 == 0:  # update every 10 files
+                    progress_callback(f"Processed {i+1}/{len(file_blocks)} files")
             
             # If no code samples found, add a placeholder
             if not code_samples:
-                print("No code samples collected. Adding placeholder.")
+                logger.warn("No code samples collected. Adding placeholder.")
+                repo_url = f"https://github.com/{self.repo_owner}/{self.repo_name}"
                 code_samples.append(f"File: bash\n\ngit clone {repo_url}\n\n")
                 self.code_sample_files.append("bash")
 
@@ -448,11 +452,13 @@ class GitHubRepository:
                 progress_callback(
                     f"Collected {len(code_samples)} code samples from {file_count} files"
                 )
+                
+            logger.debug(f"Code sample collection completed in {elapsed:.2f}s")
 
             return file_metrics, code_samples
 
         except Exception as e:
-            print(f"Error collecting code samples: {str(e)}")
+            logger.error(f"Error collecting code samples: {str(e)}")
 
             # Return empty results on error
             if progress_callback:

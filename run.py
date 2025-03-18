@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Entry point for Celo Hackathon Analyzer.
+Entry point for Hackathon Analyzer.
 
-This script launches the analysis of GitHub repositories for Celo hackathon projects,
-evaluating code quality and checking for Celo blockchain integration.
+This script launches the analysis of GitHub repositories for hackathon projects,
+evaluating code quality and checking for blockchain integration.
 """
 
 from src.main import main

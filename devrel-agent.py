@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from src.analyzer.repo_analyzer import RepositoryAnalyzer
 from src.reporting.report_generator import generate_report
 from src.main import load_projects, analyze_projects
-from src.utils.spinner import Spinner
+from src.utils.logger import logger, configure_logger
 
 # Load environment variables from .env file
 load_dotenv()
@@ -236,38 +236,47 @@ def run_analysis(user_input: Dict[str, Any]) -> int:
 
         print(f"\n{COLORS['yellow']}Starting analysis...{COLORS['reset']}\n")
         
-        spinner = Spinner("Initializing analysis")
-        spinner.start()
+        # Configure logger with verbose setting
+        configure_logger(user_input['verbose'])
+        
+        # Start overall analysis timer
+        logger.info("Starting analysis process", step="Analysis")
         
         # Get project data
         if user_input['source'] == 'excel':
-            spinner.update("Loading project data from Excel")
+            logger.info("Loading project data from Excel", step="Load Projects")
             projects_df = load_projects(user_input['excel_path'])
+            logger.step_complete("Load Projects")
         else:
-            spinner.update("Preparing data from direct URLs")
+            logger.info("Preparing data from direct URLs", step="Prepare Data")
             projects_df = create_dataframe_from_urls(
                 user_input['github_urls'],
                 user_input['project_name'],
                 user_input['project_description']
             )
+            logger.step_complete("Prepare Data")
         
-        # Update spinner with project count
+        # Get project count
         project_count = len(projects_df)
-        spinner.update(f"Analyzing {project_count} projects")
+        logger.info(f"Found {project_count} projects to analyze")
         
         # Run analysis with verbose flag if enabled
+        logger.info(f"Analyzing {project_count} projects", step="Project Analysis")
         results = analyze_projects(
             projects_df, 
             user_input['config_path'], 
             model_provider, 
             verbose=user_input['verbose']
         )
+        logger.step_complete("Project Analysis")
         
         # Generate reports
-        spinner.update(f"Generating reports for {project_count} projects")
+        logger.info(f"Generating reports for {project_count} projects", step="Report Generation")
         generate_report(results, user_input['output_dir'])
+        logger.step_complete("Report Generation")
         
-        spinner.stop("Analysis completed")
+        # Complete overall analysis
+        logger.step_complete("Analysis")
         
         # Show completion message
         print(

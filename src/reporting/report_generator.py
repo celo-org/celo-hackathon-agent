@@ -1,19 +1,15 @@
 """
-Report generation module for the Celo Hackathon Analyzer.
+Report generation module for the Hackathon Analyzer.
 """
 
 import os
 import json
-import logging
 import pandas as pd
 from typing import Dict, List, Any
 from pathlib import Path
 from datetime import datetime
 
-from src.utils.spinner import Spinner
-
-# Configure logger
-logger = logging.getLogger(__name__)
+from src.utils.logger import logger
 
 def format_date(date_string: str) -> str:
     """Format ISO date string to a more readable format."""
@@ -41,9 +37,6 @@ def generate_report(results: List[Dict[str, Any]], output_dir: str = "reports") 
         results: List of project analysis results
         output_dir: Directory to save reports
     """
-    spinner = Spinner("Generating reports")
-    spinner.start()
-    
     try:
         # Create output directory if it doesn't exist
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -53,12 +46,14 @@ def generate_report(results: List[Dict[str, Any]], output_dir: str = "reports") 
         Path(project_reports_dir).mkdir(exist_ok=True)
         
         # Save raw results to JSON for future reference
+        logger.debug(f"Saving raw results to {output_dir}/raw_results.json")
         raw_results_path = os.path.join(output_dir, "raw_results.json")
         with open(raw_results_path, 'w') as f:
             json.dump(results, f, indent=2)
         
         # Generate individual project reports
-        for project in results:
+        logger.debug(f"Generating {len(results)} individual project reports")
+        for i, project in enumerate(results):
             project_name = project["project_name"]
             sanitized_name = "".join(c if c.isalnum() else "_" for c in project_name)
             
@@ -69,14 +64,19 @@ def generate_report(results: List[Dict[str, Any]], output_dir: str = "reports") 
             report_path = os.path.join(project_reports_dir, f"{sanitized_name}.md")
             with open(report_path, 'w') as f:
                 f.write(report_content)
+                
+            # Log progress if verbose
+            logger.debug(f"Generated report {i+1}/{len(results)}: {project_name}")
         
         # Generate summary report
+        logger.debug("Generating summary report")
         summary_report = generate_summary_report(results)
         summary_path = os.path.join(output_dir, "summary.md")
         with open(summary_path, 'w') as f:
             f.write(summary_report)
         
         # Generate CSV summary
+        logger.debug("Generating CSV summary")
         csv_data = []
         for project in results:
             project_data = {
@@ -93,9 +93,9 @@ def generate_report(results: List[Dict[str, Any]], output_dir: str = "reports") 
                 if "code_quality" in analysis and isinstance(analysis["code_quality"], dict):
                     project_data["Code Quality Score"] = analysis["code_quality"].get("overall_score", 0)
                 
-                # Extract Celo integration status if available
+                # Extract integration status if available
                 if "celo_integration" in analysis and isinstance(analysis["celo_integration"], dict):
-                    project_data["Celo Integration"] = "Yes" if analysis["celo_integration"].get("integrated", False) else "No"
+                    project_data["Blockchain Integration"] = "Yes" if analysis["celo_integration"].get("integrated", False) else "No"
             
             csv_data.append(project_data)
         
@@ -103,12 +103,10 @@ def generate_report(results: List[Dict[str, Any]], output_dir: str = "reports") 
         csv_path = os.path.join(output_dir, "summary.csv")
         pd.DataFrame(csv_data).to_csv(csv_path, index=False)
         
-        spinner.stop(f"Reports generated successfully in {output_dir}")
         logger.info(f"Reports generated successfully in {output_dir}")
         
     except Exception as e:
         error_msg = f"Error generating reports: {str(e)}"
-        spinner.stop(error_msg)
         logger.error(error_msg)
         raise
 
