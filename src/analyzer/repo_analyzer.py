@@ -6,6 +6,8 @@ import os
 from typing import Dict, Any, Optional, Callable
 
 from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from src.models.config import Config
 from src.models.types import RepositoryAnalysisResult
@@ -24,18 +26,40 @@ class RepositoryAnalyzer:
     to provide insights into repository quality and Celo integration.
     """
     
-    def __init__(self, config_path: str = "config.json"):
+    def __init__(self, config_path: str = "config.json", model_provider: Optional[str] = None):
         """
         Initialize the repository analyzer with configuration.
         
         Args:
             config_path: Path to the configuration file
+            model_provider: Optional model provider override (anthropic, openai, google)
         """
         # Load configuration
         self.config = Config.from_file(config_path)
         
-        # Set up Anthropic model if API key is available
+        # Set up LLM based on provider
         self.llm = None
+        self.model_provider = model_provider or self.config.default_model
+        
+        # Initialize LLM based on provider
+        if self.model_provider == "anthropic":
+            self._init_anthropic_model()
+        elif self.model_provider == "openai":
+            self._init_openai_model()
+        elif self.model_provider == "google":
+            self._init_google_model()
+        else:
+            print(f"Warning: Unknown model provider '{self.model_provider}'. Falling back to default.")
+            self._init_anthropic_model()
+        
+        # Initialize components
+        self.github_repo = GitHubRepository(self.config)
+        self.code_analyzer = CodeQualityAnalyzer(self.config, self.llm)
+        self.celo_detector = CeloIntegrationDetector(self.config, self.llm)
+        self.deep_code_analyzer = DeepCodeAnalyzer(self.config, self.llm)
+    
+    def _init_anthropic_model(self):
+        """Initialize Anthropic Claude model."""
         self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
         if self.anthropic_api_key:
             try:
@@ -44,17 +68,46 @@ class RepositoryAnalyzer:
                     temperature=self.config.temperature,
                     anthropic_api_key=self.anthropic_api_key
                 )
+                print("Using Anthropic Claude model for analysis")
             except Exception as e:
                 print(f"Error initializing Claude model: {str(e)}")
                 print("Using fallback analysis methods only.")
         else:
             print("Warning: No Anthropic API key found. Using fallback analysis methods only.")
-        
-        # Initialize components
-        self.github_repo = GitHubRepository(self.config)
-        self.code_analyzer = CodeQualityAnalyzer(self.config, self.llm)
-        self.celo_detector = CeloIntegrationDetector(self.config, self.llm)
-        self.deep_code_analyzer = DeepCodeAnalyzer(self.config, self.llm)
+    
+    def _init_openai_model(self):
+        """Initialize OpenAI model."""
+        self.openai_api_key = os.environ.get("OPENAI_API_KEY")
+        if self.openai_api_key:
+            try:
+                self.llm = ChatOpenAI(
+                    model="gpt-4-turbo",
+                    temperature=self.config.temperature,
+                    api_key=self.openai_api_key
+                )
+                print("Using OpenAI GPT-4 model for analysis")
+            except Exception as e:
+                print(f"Error initializing OpenAI model: {str(e)}")
+                print("Using fallback analysis methods only.")
+        else:
+            print("Warning: No OpenAI API key found. Using fallback analysis methods only.")
+    
+    def _init_google_model(self):
+        """Initialize Google Gemini model."""
+        self.google_api_key = os.environ.get("GOOGLE_API_KEY")
+        if self.google_api_key:
+            try:
+                self.llm = ChatGoogleGenerativeAI(
+                    model="gemini-1.5-pro",
+                    temperature=self.config.temperature,
+                    google_api_key=self.google_api_key
+                )
+                print("Using Google Gemini model for analysis")
+            except Exception as e:
+                print(f"Error initializing Google Gemini model: {str(e)}")
+                print("Using fallback analysis methods only.")
+        else:
+            print("Warning: No Google API key found. Using fallback analysis methods only.")
         
     def analyze_repository(self, repo_url: str, callback: Optional[Callable] = None) -> RepositoryAnalysisResult:
         """

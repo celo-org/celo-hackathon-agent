@@ -8,16 +8,21 @@ and Celo blockchain integration.
 
 import os
 import sys
+import json
 import argparse
 import inquirer
 import pandas as pd
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+from dotenv import load_dotenv
 
 from src.analyzer.repo_analyzer import RepositoryAnalyzer
 from src.reporting.report_generator import generate_report
 from src.main import load_projects, analyze_projects
 from src.utils.spinner import Spinner
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Define colors for styling
 COLORS = {
@@ -75,6 +80,20 @@ def get_user_input() -> Dict[str, Any]:
     Returns:
         Dict containing user input values.
     """
+    # Ask for model provider first
+    model_question = [
+        inquirer.List('model_provider',
+                      message="Choose AI model provider:",
+                      choices=[
+                          ('Anthropic Claude', 'anthropic'),
+                          ('OpenAI GPT-4', 'openai'),
+                          ('Google Gemini', 'google'),
+                      ],
+                    ),
+    ]
+    model_answer = inquirer.prompt(model_question)
+    model_provider = model_answer['model_provider']
+    
     # Ask for analysis source
     source_question = [
         inquirer.List('source',
@@ -88,7 +107,7 @@ def get_user_input() -> Dict[str, Any]:
     source_answer = inquirer.prompt(source_question)
     
     # Based on source, ask for specific input
-    input_data = {}
+    input_data = {'model_provider': model_provider}
     
     if source_answer['source'] == 'excel':
         excel_questions = [
@@ -187,8 +206,24 @@ def run_analysis(user_input: Dict[str, Any]) -> int:
         Exit code (0 for success, 1 for error)
     """
     try:
+        # Get model provider
+        model_provider = user_input.get('model_provider', 'anthropic')
+        
+        # Check if API key is available for selected provider
+        api_key_env_var = {
+            'anthropic': 'ANTHROPIC_API_KEY',
+            'openai': 'OPENAI_API_KEY', 
+            'google': 'GOOGLE_API_KEY'
+        }.get(model_provider)
+        
+        if api_key_env_var and not os.environ.get(api_key_env_var):
+            print(f"\n❌ Error: No API key found for {model_provider.capitalize()} in environment variables.")
+            print(f"Please set the {api_key_env_var} environment variable in your .env file.")
+            return 1
+        
         # Display configuration
         print(f"\n{COLORS['bold']}Configuration:{COLORS['reset']}")
+        print(f"  {COLORS['cyan']}🤖 Model Provider:{COLORS['reset']} {model_provider.capitalize()}")
         print(f"  {COLORS['cyan']}📊 Input Source:{COLORS['reset']} {user_input['source']}")
         if user_input['source'] == 'excel':
             print(f"  {COLORS['cyan']}📄 Excel Path:{COLORS['reset']} {user_input['excel_path']}")
@@ -220,8 +255,11 @@ def run_analysis(user_input: Dict[str, Any]) -> int:
         project_count = len(projects_df)
         spinner.update(f"Analyzing {project_count} projects")
         
+        # Create analyzer with selected model provider
+        analyzer = RepositoryAnalyzer(user_input['config_path'], model_provider)
+        
         # Run analysis
-        results = analyze_projects(projects_df, user_input['config_path'])
+        results = analyze_projects(projects_df, user_input['config_path'], model_provider)
         
         # Generate reports
         spinner.update(f"Generating reports for {project_count} projects")
@@ -240,6 +278,7 @@ def run_analysis(user_input: Dict[str, Any]) -> int:
             f"{COLORS['green']}╚═════════════════════════════════════════════════════╝{COLORS['reset']}"
         )
         print(f"\n{COLORS['bold']}Summary:{COLORS['reset']}")
+        print(f"  {COLORS['cyan']}🤖 Model Provider:{COLORS['reset']} {model_provider.capitalize()}")
         print(f"  {COLORS['cyan']}📊 Projects Analyzed:{COLORS['reset']} {project_count}")
         print(f"  {COLORS['cyan']}📁 Reports:{COLORS['reset']} {user_input['output_dir']}/")
         print(
@@ -267,6 +306,8 @@ def main():
     parser.add_argument('--output', default='reports', help='Output directory for reports')
     parser.add_argument('--config', default='config.json', help='Path to config file')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('--model', choices=['anthropic', 'openai', 'google'],
+                       default=None, help='AI model provider (anthropic, openai, google)')
     
     args = parser.parse_args()
     
@@ -280,6 +321,18 @@ def main():
             'output_dir': args.output,
             'config_path': args.config
         }
+        
+        # Load config to get default model if not specified
+        try:
+            with open(args.config, 'r') as f:
+                config_data = json.load(f)
+                default_model = config_data.get('default_model', 'anthropic')
+        except Exception:
+            default_model = 'anthropic'
+            
+        # Set model provider
+        model_provider = args.model or default_model
+        user_input['model_provider'] = model_provider
         
         if args.excel:
             user_input['source'] = 'excel'

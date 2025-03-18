@@ -3,6 +3,8 @@ langchain
 langchain-community
 langchain-core
 langchain_anthropic
+langchain-openai
+langchain-google-genai
 openpyxl
 pygithub
 PyYAML

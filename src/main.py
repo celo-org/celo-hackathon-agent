@@ -104,7 +104,7 @@ def load_projects(excel_path: str) -> pd.DataFrame:
 
 
 def analyze_projects(
-    projects_df: pd.DataFrame, config_path: str = "config.json"
+    projects_df: pd.DataFrame, config_path: str = "config.json", model_provider: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Analyze projects from DataFrame.
@@ -112,6 +112,7 @@ def analyze_projects(
     Args:
         projects_df: DataFrame containing project data
         config_path: Path to configuration file
+        model_provider: Optional model provider to use for analysis (anthropic, openai, google)
 
     Returns:
         List of dictionaries containing analysis results
@@ -128,7 +129,7 @@ def analyze_projects(
         colour="green",
     )
 
-    analyzer = RepositoryAnalyzer(config_path)
+    analyzer = RepositoryAnalyzer(config_path, model_provider)
     results = []
 
     for index, row in projects_df.iterrows():

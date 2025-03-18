@@ -24,5 +24,6 @@
     "yarn.lock",
     "README.md"
   ],
-  "github_token": ""
+  "github_token": "",
+  "default_model": "anthropic"
 }
