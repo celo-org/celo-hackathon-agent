@@ -1,15 +1,15 @@
 pandas
 langchain
-langchain-community
 langchain-core
+langchain-community
 langchain_anthropic
 langchain-openai
 langchain-google-genai
 openpyxl
 PyYAML
 python-dotenv
-langgraph
 tqdm
 colorama
 inquirer
 gitingest
+anthropic

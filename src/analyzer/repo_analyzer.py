@@ -3,44 +3,152 @@ Repository analyzer that combines all analysis components.
 """
 
 import os
+import time
+import json
 from typing import Dict, Any, Optional, Callable
 
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.callbacks import get_openai_callback
+import anthropic
 
 from src.models.config import Config
 from src.models.types import RepositoryAnalysisResult
 from src.analyzer.github_repo import GitHubRepository
-from src.analyzer.code_quality import CodeQualityAnalyzer
-from src.analyzer.celo_detector import CeloIntegrationDetector
-from src.analyzer.deep_code_analyzer import DeepCodeAnalyzer
 from src.utils.spinner import run_with_active_spinner
+
+# System prompt template for repository analysis
+SYSTEM_PROMPT = """
+You are an expert code reviewer and software architect specializing in blockchain applications, particularly those built on the Celo platform.
+
+Your task is to thoroughly analyze the provided GitHub repository data and generate a comprehensive analysis report.
+
+ABOUT CELO:
+Celo is a mobile-first blockchain platform focused on making financial tools accessible to anyone with a mobile phone. Key technologies include:
+- ContractKit: JavaScript library for interacting with Celo
+- Celo wallet and identity protocols
+- Stable tokens: cUSD, cEUR, cREAL
+- Mobile-first design principles
+- Social payments using phone numbers as identifiers
+
+ANALYSIS INSTRUCTIONS:
+1. Repository Type Detection:
+   - Identify the type of repository (web app, mobile app, smart contract, API, library, etc.)
+   - Determine the main programming languages and frameworks used
+
+2. Code Quality Assessment:
+   - Evaluate code readability, standards compliance, complexity, and testing coverage
+   - Provide a score for each area (0-100) with detailed reasoning
+
+3. Celo Integration Analysis:
+   - Determine if and how the project integrates with Celo blockchain
+   - Look for Celo dependencies, contract imports, and Celo-specific code
+   - Identify which Celo features are being utilized
+
+4. Architecture Evaluation:
+   - Analyze the overall system architecture
+   - Identify design patterns and architectural approaches
+   - Evaluate code organization and module structure
+
+5. Key Findings:
+   - Highlight 3-5 important observations about the codebase
+   - Note particularly good implementations or areas of concern
+
+6. Improvement Recommendations:
+   - Suggest concrete ways to improve the code or architecture
+   - Prioritize recommendations by potential impact
+
+// Code Examples section removed
+
+8. Confidence Assessment:
+   - For each section of your analysis, indicate your confidence level (High/Medium/Low)
+   - Explain what factors influenced your confidence rating
+
+OUTPUT FORMAT:
+Return your analysis as a JSON object with the following structure:
+
+{
+  "repo_type": {
+    "type": "string", 
+    "languages": ["list", "of", "languages"],
+    "frameworks": ["list", "of", "frameworks"]
+  },
+  "code_quality": {
+    "overall_score": number,
+    "readability": {"score": number, "analysis": "string"},
+    "standards": {"score": number, "analysis": "string"},
+    "complexity": {"score": number, "analysis": "string"},
+    "testing": {"score": number, "analysis": "string"}
+  },
+  "celo_integration": {
+    "integrated": boolean,
+    "features_used": ["list", "of", "celo", "features"],
+    "evidence": ["list", "of", "evidence", "found"],
+    "integration_quality": {"score": number, "analysis": "string"}
+  },
+  "architecture": {
+    "patterns": ["list", "of", "design", "patterns"],
+    "structure_quality": {"score": number, "analysis": "string"},
+    "modularity": {"score": number, "analysis": "string"}
+  },
+  "findings": {
+    "strengths": ["list", "of", "strengths"],
+    "concerns": ["list", "of", "concerns"],
+    "overall_assessment": "string"
+  },
+  "recommendations": [
+    {"priority": "High/Medium/Low", "description": "string", "justification": "string"},
+    ...
+  ],
+  // Code examples section removed
+  "confidence_levels": {
+    "code_quality": {"level": "High/Medium/Low", "reasoning": "string"},
+    "celo_integration": {"level": "High/Medium/Low", "reasoning": "string"},
+    "architecture": {"level": "High/Medium/Low", "reasoning": "string"}
+  }
+}
+
+IMPORTANT NOTES:
+- Base your analysis ONLY on the code provided, not external assumptions
+- Be specific and provide concrete examples whenever possible
+- Maintain objectivity and professional tone throughout
+- If you're uncertain about any aspect, indicate that clearly in your confidence assessment
+- Focus on substantive issues rather than stylistic preferences
+- Consider the project's apparent goals when making recommendations
+"""
 
 
 class RepositoryAnalyzer:
     """
     Analyzes GitHub repositories for code quality and Celo blockchain integration.
-    
+
     This class combines GitHub API access, code analysis, and AI-powered evaluation
     to provide insights into repository quality and Celo integration.
     """
-    
-    def __init__(self, config_path: str = "config.json", model_provider: Optional[str] = None):
+
+    def __init__(
+        self,
+        config_path: str = "config.json",
+        model_provider: Optional[str] = None,
+        verbose: bool = False,
+    ):
         """
         Initialize the repository analyzer with configuration.
-        
+
         Args:
             config_path: Path to the configuration file
             model_provider: Optional model provider override (anthropic, openai, google)
+            verbose: Whether to enable verbose output
         """
         # Load configuration
         self.config = Config.from_file(config_path)
-        
+        self.verbose = verbose
+
         # Set up LLM based on provider
         self.llm = None
         self.model_provider = model_provider or self.config.default_model
-        
+
         # Initialize LLM based on provider
         if self.model_provider == "anthropic":
             self._init_anthropic_model()
@@ -49,378 +157,324 @@ class RepositoryAnalyzer:
         elif self.model_provider == "google":
             self._init_google_model()
         else:
-            print(f"Warning: Unknown model provider '{self.model_provider}'. Falling back to default.")
+            print(
+                f"Warning: Unknown model provider '{self.model_provider}'. Falling back to default."
+            )
             self._init_anthropic_model()
-        
-        # Initialize components
+
+        # Initialize GitHub repository handler
         self.github_repo = GitHubRepository(self.config)
-        self.code_analyzer = CodeQualityAnalyzer(self.config, self.llm)
-        self.celo_detector = CeloIntegrationDetector(self.config, self.llm)
-        self.deep_code_analyzer = DeepCodeAnalyzer(self.config, self.llm)
-    
+
     def _init_anthropic_model(self):
         """Initialize Anthropic Claude model."""
-        self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if self.anthropic_api_key:
-            try:
-                self.llm = ChatAnthropic(
-                    model=self.config.model_name,
-                    temperature=self.config.temperature,
-                    anthropic_api_key=self.anthropic_api_key
-                )
-                print("Using Anthropic Claude model for analysis")
-            except Exception as e:
-                print(f"Error initializing Claude model: {str(e)}")
-                print("Using fallback analysis methods only.")
-        else:
-            print("Warning: No Anthropic API key found. Using fallback analysis methods only.")
-    
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
+            
+        print(f"Using model: {self.config.model_name}")
+        self.llm = ChatAnthropic(
+            model=self.config.model_name,
+            temperature=self.config.temperature,
+            anthropic_api_key=api_key,
+        )
+
     def _init_openai_model(self):
         """Initialize OpenAI model."""
-        self.openai_api_key = os.environ.get("OPENAI_API_KEY")
-        if self.openai_api_key:
-            try:
-                self.llm = ChatOpenAI(
-                    model="gpt-4-turbo",
-                    temperature=self.config.temperature,
-                    api_key=self.openai_api_key
-                )
-                print("Using OpenAI GPT-4 model for analysis")
-            except Exception as e:
-                print(f"Error initializing OpenAI model: {str(e)}")
-                print("Using fallback analysis methods only.")
-        else:
-            print("Warning: No OpenAI API key found. Using fallback analysis methods only.")
-    
+        self.llm = ChatOpenAI(
+            model_name="gpt-4",
+            temperature=self.config.temperature,
+            openai_api_key=os.environ.get("OPENAI_API_KEY"),
+        )
+
     def _init_google_model(self):
         """Initialize Google Gemini model."""
-        self.google_api_key = os.environ.get("GOOGLE_API_KEY")
-        if self.google_api_key:
-            try:
-                self.llm = ChatGoogleGenerativeAI(
-                    model="gemini-1.5-pro",
-                    temperature=self.config.temperature,
-                    google_api_key=self.google_api_key
-                )
-                print("Using Google Gemini model for analysis")
-            except Exception as e:
-                print(f"Error initializing Google Gemini model: {str(e)}")
-                print("Using fallback analysis methods only.")
-        else:
-            print("Warning: No Google API key found. Using fallback analysis methods only.")
-        
-    def analyze_repository(self, repo_url: str, callback: Optional[Callable] = None) -> RepositoryAnalysisResult:
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable is not set")
+            
+        print(f"Using Google Gemini model: gemini-2.0-flash")
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            temperature=self.config.temperature,
+            google_api_key=api_key,
+        )
+
+    def analyze_repository(
+        self, repo_url: str, callback: Optional[Callable] = None
+    ) -> RepositoryAnalysisResult:
         """
-        Analyze a GitHub repository for code quality and Celo integration.
-        
+        Analyze a GitHub repository.
+
         Args:
             repo_url: URL of the GitHub repository
-            callback: Optional callback function to report progress
-            
+            callback: Optional callback for progress updates
+
         Returns:
-            RepositoryAnalysisResult containing analysis results
+            Analysis results
         """
+        # Initialize analysis result
+        analysis_result = {}
+
         try:
-            # Setup GitHub connection
-            if callback:
-                callback(f"Setting up GitHub tools for {repo_url}")
-            
-            repo_owner, repo_name = self.github_repo.setup_repository(repo_url)
-            
-            # Step 1: Get repository details
-            repo_details = self._get_repository_details_safely(repo_owner, repo_name, repo_url, callback)
-            
-            # Step 2: Analyze code quality
-            code_quality = self._analyze_code_quality_safely(repo_owner, repo_name, repo_details.get("description", ""), callback)
-            
-            # Step 3: Check for Celo integration
-            celo_integration = self._check_celo_integration_safely(repo_owner, repo_name, repo_details.get("description", ""), callback)
-            
-            # Step 4: Perform deep code analysis if LLM is available
-            deep_code_analysis = self._perform_deep_code_analysis_safely(repo_owner, repo_name, callback)
-            
-            # Compile results
-            if callback:
-                callback(f"Compiling analysis results for {repo_owner}/{repo_name}")
-                
-            results = {
-                "repo_details": repo_details,
-                "code_quality": code_quality,
-                "celo_integration": celo_integration,
-                "deep_code_analysis": deep_code_analysis
-            }
-            
-            return results
-            
-        except Exception as e:
-            error_message = f"Error analyzing repository: {str(e)}"
-            
-            if callback:
-                # Show error in spinner
-                callback(f"Error analyzing {repo_url}: {str(e)}")
-                
-            # Create a result with error information
-            return {
-                "error": error_message,
-                "repo_details": self.github_repo.create_fallback_repo_details(
-                    repo_owner=repo_url.split('/')[-2] if 'github.com' in repo_url else "unknown",
-                    repo_name=repo_url.split('/')[-1] if 'github.com' in repo_url else "unknown",
-                    repo_url=repo_url
-                ),
-                "code_quality": self.code_analyzer._create_fallback_code_quality(error_message) if hasattr(self.code_analyzer, '_create_fallback_code_quality') else {"error": error_message},
-                "celo_integration": {"integrated": False, "evidence": []},
-                "deep_code_analysis": self.deep_code_analyzer._create_fallback_analysis(error_message) if hasattr(self.deep_code_analyzer, '_create_fallback_analysis') else {"error": error_message}
-            }
-    
-    def _get_repository_details_safely(self, repo_owner: str, repo_name: str, repo_url: str, callback=None) -> Dict[str, Any]:
-        """
-        Safely get repository details with error handling and fallback.
-        
-        Args:
-            repo_owner: Owner of the repository
-            repo_name: Name of the repository
-            repo_url: URL of the repository
-            callback: Optional callback function for progress updates
-            
-        Returns:
-            Repository details dictionary
-        """
-        if callback:
-            callback(f"Fetching repository details for {repo_owner}/{repo_name}")
-            
-            try:
-                return run_with_active_spinner(
-                    func=self.github_repo.get_repository_details,
-                    message=f"Fetching repository details for {repo_owner}/{repo_name}",
-                    callback=callback
+            # Set up repository and get repository details
+            repo_details = self._get_repository_details_safely(repo_url, callback)
+            analysis_result["repo_details"] = repo_details
+
+            # Collect code samples with progress updates
+            file_metrics, code_samples = run_with_active_spinner(
+                self.github_repo.collect_code_samples,
+                kwargs={"progress_callback": callback},
+                message="Collecting code samples",
+                callback=callback,
+            )
+
+            # Process collected data to find Celo integration evidence
+            celo_evidence = []
+            for keyword in self.config.celo_keywords:
+                keyword_found = self.github_repo.search_files_for_keywords(
+                    self.github_repo.code_sample_files, [keyword]
                 )
-            except Exception as e:
-                # Handle API or connection errors
-                error_message = str(e)
-                callback(f"Error fetching repository details: {error_message}")
-                return self.github_repo.create_fallback_repo_details(repo_owner, repo_name, repo_url)
-        else:
-            try:
-                return self.github_repo.get_repository_details()
-            except Exception:
-                return self.github_repo.create_fallback_repo_details(repo_owner, repo_name, repo_url)
-    
-    def _analyze_code_quality_safely(self, repo_owner: str, repo_name: str, repo_description: str, callback=None) -> Dict[str, Any]:
-        """
-        Safely analyze code quality with error handling and fallback.
-        
-        Args:
-            repo_owner: Owner of the repository
-            repo_name: Name of the repository
-            repo_description: Repository description
-            callback: Optional callback function for progress updates
+                celo_evidence.extend(keyword_found)
+
+            # Generate digest for LLM analysis
+            if callback:
+                callback("Generating repository digest for AI analysis")
+
+            repo_digest = self._generate_repo_digest(
+                repo_details, file_metrics, code_samples, celo_evidence
+            )
+
+            # Analyze digest with LLM
+            if callback:
+                callback("Analyzing repository with AI")
+                
+            # Print digest size for debugging
+            print(f"Repository digest size: {len(repo_digest)} characters")
+            if len(repo_digest) < 500:
+                print("Warning: Repository digest is suspiciously small!")
+                print(f"Full digest: {repo_digest}")
             
-        Returns:
-            Code quality analysis dictionary
-        """
-        if callback:
-            callback(f"Analyzing code quality for {repo_owner}/{repo_name}")
-        
-        # With GitIngest, we always have repository data if repo_data is not None
-        if self.github_repo.repo_data is None:
-            # No repository data, use estimation
-            if callback:
-                try:
-                    return run_with_active_spinner(
-                        func=self.code_analyzer.analyze_without_access,
-                        args=(repo_owner, repo_name, repo_description),
-                        message=f"Estimating code quality for {repo_owner}/{repo_name}",
-                        callback=callback
-                    )
-                except Exception as e:
-                    error_message = str(e)
-                    callback(f"Error estimating code quality: {error_message}")
-                    return self.code_analyzer.estimate_quality_with_heuristics(repo_owner, repo_name)
-            else:
-                return self.code_analyzer.analyze_without_access(repo_owner, repo_name, repo_description)
-        else:
-            # Have repository data from GitIngest, analyze code samples
-            if callback:
-                try:
-                    # First collect code samples
-                    file_metrics, code_samples = run_with_active_spinner(
-                        func=self.github_repo.collect_code_samples,
-                        args=(callback,),  # Pass the callback to the function
-                        message=f"Collecting code samples from {repo_owner}/{repo_name}",
-                        callback=callback
-                    )
-                    
-                    # Then analyze them
-                    return run_with_active_spinner(
-                        func=self.code_analyzer.analyze_code_samples,
-                        args=(code_samples, file_metrics),
-                        message=f"Analyzing code samples from {repo_owner}/{repo_name}",
-                        callback=callback
-                    )
-                except Exception as e:
-                    error_message = str(e)
-                    callback(f"Error analyzing code quality: {error_message}")
-                    return self.code_analyzer.estimate_quality_with_heuristics(repo_owner, repo_name)
-            else:
-                try:
-                    file_metrics, code_samples = self.github_repo.collect_code_samples()
-                    return self.code_analyzer.analyze_code_samples(code_samples, file_metrics)
-                except Exception:
-                    return self.code_analyzer.estimate_quality_with_heuristics(repo_owner, repo_name)
-    
-    def _check_celo_integration_safely(self, repo_owner: str, repo_name: str, repo_description: str, callback=None) -> Dict[str, Any]:
-        """
-        Safely check Celo integration with error handling and fallback.
-        
-        Args:
-            repo_owner: Owner of the repository
-            repo_name: Name of the repository
-            repo_description: Repository description
-            callback: Optional callback function for progress updates
-            
-        Returns:
-            Celo integration analysis dictionary
-        """
-        if callback:
-            callback(f"Checking Celo integration for {repo_owner}/{repo_name}")
-        
-        # Choose analysis method based on repository data
-        if self.github_repo.repo_data is None:
-            # No repository data, use estimation
-            if callback:
-                try:
-                    return run_with_active_spinner(
-                        func=self.celo_detector.check_without_access,
-                        args=(repo_owner, repo_name, repo_description),
-                        message=f"Estimating Celo integration for {repo_owner}/{repo_name}",
-                        callback=callback
-                    )
-                except Exception as e:
-                    error_message = str(e)
-                    callback(f"Error estimating Celo integration: {error_message}")
-                    has_celo_in_name = "celo" in repo_name.lower()
-                    return {
-                        "integrated": has_celo_in_name,
-                        "evidence": [{"file": "Repository name", "keyword": "celo"}] if has_celo_in_name else [],
-                        "repositories_with_celo": 1 if has_celo_in_name else 0
-                    }
-            else:
-                return self.celo_detector.check_without_access(repo_owner, repo_name, repo_description)
-        else:
-            # Have repository data from GitIngest, check directly
-            if callback:
-                try:
-                    return run_with_active_spinner(
-                        func=self.celo_detector.check_integration,
-                        args=(self.github_repo, repo_owner, repo_name),
-                        message=f"Checking Celo integration in {repo_owner}/{repo_name}",
-                        callback=callback
-                    )
-                except Exception as e:
-                    error_message = str(e)
-                    callback(f"Error checking Celo integration: {error_message}")
-                    has_celo_in_name = "celo" in repo_name.lower()
-                    return {
-                        "integrated": has_celo_in_name,
-                        "evidence": [{"file": "Repository name", "keyword": "celo"}] if has_celo_in_name else [],
-                        "repositories_with_celo": 1 if has_celo_in_name else 0
-                    }
-            else:
-                try:
-                    return self.celo_detector.check_integration(self.github_repo, repo_owner, repo_name)
-                except Exception:
-                    has_celo_in_name = "celo" in repo_name.lower()
-                    return {
-                        "integrated": has_celo_in_name,
-                        "evidence": [{"file": "Repository name", "keyword": "celo"}] if has_celo_in_name else [],
-                        "repositories_with_celo": 1 if has_celo_in_name else 0
-                    }
-                    
-    def _perform_deep_code_analysis_safely(self, repo_owner: str, repo_name: str, callback=None) -> Dict[str, Any]:
-        """
-        Safely perform deep code analysis with error handling and fallback.
-        
-        Args:
-            repo_owner: Owner of the repository
-            repo_name: Name of the repository
-            callback: Optional callback function for progress updates
-            
-        Returns:
-            Deep code analysis dictionary
-        """
-        # Only proceed if LLM is available
-        if self.llm is None:
-            if callback:
-                callback(f"Skipping deep code analysis for {repo_owner}/{repo_name} - LLM not available")
-            return self.deep_code_analyzer._create_fallback_analysis("LLM not available for deep analysis")
-        
-        # Only proceed if we have repository data
-        if self.github_repo.repo_data is None:
-            if callback:
-                callback(f"Skipping deep code analysis for {repo_owner}/{repo_name} - repository data not available")
-            return self.deep_code_analyzer._create_fallback_analysis("Repository data not available for deep analysis")
-        
-        if callback:
-            callback(f"Performing deep code analysis for {repo_owner}/{repo_name}")
-        
-        try:
-            # First collect detailed code samples with filenames
-            file_samples = []
-            
-            if callback:
-                try:
-                    # Get code samples with filenames
-                    _, code_samples = run_with_active_spinner(
-                        func=self.github_repo.collect_code_samples,
-                        args=(callback,),
-                        message=f"Collecting code samples from {repo_owner}/{repo_name} for deep analysis",
-                        callback=callback
-                    )
-                    
-                    # Convert to format expected by deep code analyzer
-                    for i, sample in enumerate(code_samples):
-                        if hasattr(self.github_repo, 'code_sample_files') and i < len(self.github_repo.code_sample_files):
-                            filename = self.github_repo.code_sample_files[i]
-                        else:
-                            filename = f"sample_{i}.txt"
-                            
-                        file_samples.append({
-                            "filename": filename,
-                            "content": sample
-                        })
-                    
-                    # Then perform deep analysis
-                    return run_with_active_spinner(
-                        func=self.deep_code_analyzer.analyze_codebase,
-                        args=(file_samples,),
-                        message=f"Performing deep code analysis for {repo_owner}/{repo_name}",
-                        callback=callback
-                    )
-                except Exception as e:
-                    error_message = str(e)
-                    callback(f"Error performing deep code analysis: {error_message}")
-                    return self.deep_code_analyzer._create_fallback_analysis(error_message)
-            else:
-                try:
-                    # Non-interactive mode
-                    _, code_samples = self.github_repo.collect_code_samples()
-                    
-                    # Convert to format expected by deep code analyzer
-                    for i, sample in enumerate(code_samples):
-                        if hasattr(self.github_repo, 'code_sample_files') and i < len(self.github_repo.code_sample_files):
-                            filename = self.github_repo.code_sample_files[i]
-                        else:
-                            filename = f"sample_{i}.txt"
-                            
-                        file_samples.append({
-                            "filename": filename,
-                            "content": sample
-                        })
-                    
-                    return self.deep_code_analyzer.analyze_codebase(file_samples)
-                except Exception as e:
-                    return self.deep_code_analyzer._create_fallback_analysis(str(e))
+            repo_analysis = self._analyze_with_llm(repo_digest, callback)
+
+            # Combine all analysis components into final result
+            for key, value in repo_analysis.items():
+                analysis_result[key] = value
+
+            # Add celo evidence to results if not already included
+            if "celo_integration" in analysis_result and isinstance(
+                analysis_result["celo_integration"], dict
+            ):
+                if (
+                    not analysis_result["celo_integration"].get("evidence")
+                    and celo_evidence
+                ):
+                    analysis_result["celo_integration"]["evidence"] = celo_evidence
+
+            return analysis_result
+
         except Exception as e:
+            error_msg = f"Error analyzing repository: {str(e)}"
+            print(error_msg)
+            return {"error": error_msg}
+
+    def _get_repository_details_safely(
+        self, repo_url: str, callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """
+        Get repository details safely with progress updates.
+
+        Args:
+            repo_url: URL of the GitHub repository
+            callback: Optional callback for progress updates
+
+        Returns:
+            Repository details
+        """
+
+        def _get_repo_details():
+            # Setup the repository
+            self.github_repo.setup_repository(repo_url)
+
+            # Get repository details
+            return self.github_repo.get_repository_details()
+
+        # Run with spinner
+        repo_details = run_with_active_spinner(
+            _get_repo_details,
+            message=f"Fetching repository data for {repo_url}",
+            callback=callback,
+        )
+
+        return repo_details
+
+    def _generate_repo_digest(
+        self,
+        repo_details: Dict[str, Any],
+        file_metrics: Dict[str, int],
+        code_samples: list,
+        celo_evidence: list,
+    ) -> str:
+        """
+        Generate a comprehensive digest of the repository for LLM analysis.
+
+        Args:
+            repo_details: Repository details
+            file_metrics: File metrics
+            code_samples: Code samples
+            celo_evidence: Celo integration evidence
+
+        Returns:
+            Repository digest string
+        """
+        # Start with repository information
+        digest = f"# Repository Information\n"
+        digest += f"Name: {repo_details['name']}\n"
+        digest += f"Description: {repo_details['description']}\n"
+        digest += f"URL: {repo_details['url']}\n"
+        digest += f"Stars: {repo_details['stars']}\n"
+        digest += f"Forks: {repo_details['forks']}\n"
+        digest += f"Main Language: {repo_details['language']}\n\n"
+
+        # Add language breakdown if available
+        if repo_details.get("main_languages"):
+            digest += "## Language Breakdown\n"
+            for lang, percentage in repo_details["main_languages"].items():
+                digest += f"- {lang}: {percentage}%\n"
+            digest += "\n"
+
+        # Add file metrics
+        digest += "## File Metrics\n"
+        digest += f"Total Files: {file_metrics['file_count']}\n"
+        digest += f"Test Files: {file_metrics['test_file_count']}\n"
+        digest += f"Documentation Files: {file_metrics['doc_file_count']}\n"
+        digest += f"Code Files Analyzed: {file_metrics['code_files_analyzed']}\n\n"
+
+        # Add Celo integration evidence if found
+        if celo_evidence:
+            digest += "## Celo Integration Evidence\n"
+            for evidence in celo_evidence:
+                digest += f"- Found keyword '{evidence['keyword']}' in file '{evidence['file']}'\n"
+            digest += "\n"
+
+        # Add code samples
+        digest += "## Code Samples\n"
+        print(f"Adding {len(code_samples)} code samples to digest")
+        for i, sample in enumerate(code_samples):
+            print(f"Adding sample {i+1}, length: {len(sample)}")
+            digest += f"{sample}\n"
+            
+        # Print digest length for debugging
+        print(f"Total digest length: {len(digest)} characters")
+        print(f"Digest first 200 chars: {digest[:200]}")
+        print(f"Digest last 200 chars: {digest[-200:]}")
+
+        return digest
+
+    def _analyze_with_llm(
+        self, repo_digest: str, callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze repository digest with LLM.
+
+        Args:
+            repo_digest: Repository digest to analyze
+            callback: Optional callback for progress updates
+
+        Returns:
+            Analysis results
+        """
+        try:
+            # Count input tokens - just estimate for non-Anthropic
+            if self.verbose:
+                input_tokens = 0
+                if self.model_provider == "anthropic":
+                    input_tokens = anthropic.count_tokens(SYSTEM_PROMPT + repo_digest)
+                else:
+                    # Rough estimate: 4 chars per token
+                    input_tokens = (len(SYSTEM_PROMPT) + len(repo_digest)) // 4
+                
+                print(f"Input tokens (estimated): {input_tokens}")
+                
+                if callback:
+                    callback(f"Sending approximately {input_tokens} tokens to LLM for analysis")
+
+            # Track token usage with OpenAI callback (works for multiple providers)
+            with get_openai_callback() as cb:
+                try:
+                    # No need to truncate for Gemini with 900k token limit
+                    print(f"Repository digest length: {len(repo_digest)} characters")
+                    # We estimate about 4 characters per token, so max 3.6M characters
+                    if len(repo_digest) > 3600000:  # Only warn at extreme sizes
+                        print(f"Warning: Repository digest is extremely large ({len(repo_digest)} chars). May approach Gemini's limits.")
+                    
+                    # Get LLM response
+                    print(f"Sending prompt to LLM: system={len(SYSTEM_PROMPT)} chars, user={len(repo_digest)} chars")
+                    response = self.llm.invoke(
+                        [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": repo_digest},
+                        ]
+                    )
+                    content = response.content
+                    
+                    # Debug output
+                    if self.verbose:
+                        print(f"LLM response received. Length: {len(content)}")
+                        print(f"Response starts with: {content[:100]}...")
+
+                    # Log token usage
+                    if self.verbose:
+                        if callback:
+                            callback(
+                                f"Analysis completed. Input tokens: {cb.prompt_tokens}, Output tokens: {cb.completion_tokens}"
+                            )
+                        print(
+                            f"Token usage - Input: {cb.prompt_tokens}, Output: {cb.completion_tokens}, Total: {cb.total_tokens}"
+                        )
+                except Exception as api_error:
+                    print(f"API call error: {str(api_error)}")
+                    if callback:
+                        callback(f"Error calling AI model: {str(api_error)}")
+                    return {"error": f"API call failed: {str(api_error)}"}
+
+            # Parse JSON from response
+            try:
+                # Extract JSON from response (may be wrapped in markdown code blocks)
+                if "```json" in content:
+                    json_str = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    json_str = content.split("```")[1].split("```")[0].strip()
+                else:
+                    json_str = content
+                
+                # Debug JSON extraction
+                if self.verbose:
+                    print(f"Extracted JSON string (first 100 chars): {json_str[:100]}...")
+
+                analysis_result = json.loads(json_str)
+
+                # Add token metrics if verbose mode is enabled
+                if self.verbose:
+                    analysis_result["token_metrics"] = {
+                        "input_tokens": cb.prompt_tokens,
+                        "output_tokens": cb.completion_tokens,
+                        "total_tokens": cb.total_tokens,
+                    }
+
+                return analysis_result
+
+            except json.JSONDecodeError as json_err:
+                print(f"Error: Failed to parse JSON from LLM response: {str(json_err)}")
+                if callback:
+                    callback("Error parsing AI analysis result")
+                return {
+                    "error": f"Failed to parse analysis result: {str(json_err)}",
+                    "raw_response": content[:500] + "...(truncated)" if len(content) > 500 else content,
+                }
+
+        except Exception as e:
+            error_msg = f"Error in LLM analysis: {str(e)}"
+            print(error_msg)
             if callback:
-                callback(f"Error in deep code analysis: {str(e)}")
-            return self.deep_code_analyzer._create_fallback_analysis(str(e))
+                callback(f"Error in AI analysis: {str(e)}")
+            return {"error": error_msg}

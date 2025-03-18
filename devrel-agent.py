@@ -255,11 +255,13 @@ def run_analysis(user_input: Dict[str, Any]) -> int:
         project_count = len(projects_df)
         spinner.update(f"Analyzing {project_count} projects")
         
-        # Create analyzer with selected model provider
-        analyzer = RepositoryAnalyzer(user_input['config_path'], model_provider)
-        
-        # Run analysis
-        results = analyze_projects(projects_df, user_input['config_path'], model_provider)
+        # Run analysis with verbose flag if enabled
+        results = analyze_projects(
+            projects_df, 
+            user_input['config_path'], 
+            model_provider, 
+            verbose=user_input['verbose']
+        )
         
         # Generate reports
         spinner.update(f"Generating reports for {project_count} projects")

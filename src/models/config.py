@@ -15,7 +15,7 @@ class Config:
     celo_keywords: List[str]
     celo_files: List[str]
     default_model: str = "anthropic"
-    model_name: str = "claude-3-haiku-20240307"
+    model_name: str = "claude-3-sonnet-20240229"
     temperature: float = 0.1
     
     @classmethod

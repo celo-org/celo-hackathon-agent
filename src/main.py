@@ -104,7 +104,8 @@ def load_projects(excel_path: str) -> pd.DataFrame:
 
 
 def analyze_projects(
-    projects_df: pd.DataFrame, config_path: str = "config.json", model_provider: Optional[str] = None
+    projects_df: pd.DataFrame, config_path: str = "config.json", 
+    model_provider: Optional[str] = None, verbose: bool = False
 ) -> List[Dict[str, Any]]:
     """
     Analyze projects from DataFrame.
@@ -113,6 +114,7 @@ def analyze_projects(
         projects_df: DataFrame containing project data
         config_path: Path to configuration file
         model_provider: Optional model provider to use for analysis (anthropic, openai, google)
+        verbose: Whether to enable verbose output
 
     Returns:
         List of dictionaries containing analysis results
@@ -129,7 +131,8 @@ def analyze_projects(
         colour="green",
     )
 
-    analyzer = RepositoryAnalyzer(config_path, model_provider)
+    # Initialize repository analyzer with the specified model provider
+    analyzer = RepositoryAnalyzer(config_path, model_provider, verbose=verbose)
     results = []
 
     for index, row in projects_df.iterrows():
@@ -141,7 +144,6 @@ def analyze_projects(
         progress_bar.set_description(f"Analyzing Projects")
 
         # Get project_owner_github_url (comma-separated GitHub user URLs)
-        # This field contains GitHub URLs of the project owners/developers
         raw_owner_urls = row["project_owner_github_url"]
 
         # Process owner GitHub URLs (handle comma-separated URLs)
@@ -154,7 +156,8 @@ def analyze_projects(
         elif pd.notna(raw_owner_urls):  # Check if it's not NaN
             # If it's not a string (might be a single URL without commas)
             owner_github_urls = [str(raw_owner_urls)]
-        # Otherwise, leave as empty list
+        
+        # Get project URL
         project_url = row["project_url"]
 
         # Process the GitHub URLs (handle comma-separated URLs)
@@ -181,9 +184,7 @@ def analyze_projects(
                 "project_owner_github_url": owner_github_urls,
                 "project_url": project_url,
                 "analysis": {
-                    "error": "No valid GitHub URL provided",
-                    "code_quality": 0,
-                    "celo_integration": False,
+                    "error": "No valid GitHub URL provided"
                 },
             }
 
@@ -196,23 +197,6 @@ def analyze_projects(
             f"Analyzing project {index+1}/{total_projects}: {project_name} with {len(github_urls)} repo(s)"
         )
 
-        # Initialize combined analysis results
-        combined_analysis = {
-            "repo_details": [],
-            "code_quality": {"overall_score": 0, "repositories_analyzed": 0},
-            "celo_integration": {
-                "integrated": False,
-                "evidence": [],
-                "repositories_with_celo": 0,
-            },
-        }
-
-        # Create a spinner
-        spinner = Spinner(
-            f"Analyzing {len(github_urls)} GitHub repositories for {project_name}"
-        )
-        spinner.start()
-
         # Analyze each GitHub repository
         for url_index, github_url in enumerate(github_urls):
             try:
@@ -221,149 +205,58 @@ def analyze_projects(
                     logger.warning(f"Skipping invalid URL: {github_url}")
                     continue
 
-                # Update spinner with current repo
-                spinner.update(
+                # Create a spinner for this repository analysis
+                spinner = Spinner(
                     f"Analyzing repository {url_index+1}/{len(github_urls)}: {github_url}"
                 )
+                spinner.start()
 
                 # Define a callback function to update the spinner
                 def progress_callback(message):
-                    # The spinner's update method now includes animation
+                    # Update with repository context
                     updated_message = f"[{url_index+1}/{len(github_urls)}] {message}"
                     spinner.update(updated_message)
-
-                    # Helper for manual animation during long operations
-                    if "Analyzing" in message or "Checking" in message:
-                        # Manually force a few extra animation frames to show activity
-                        for _ in range(3):
-                            time.sleep(0.1)
-                            spinner.update(updated_message)
 
                 # Analyze repository with progress updates
                 repo_analysis = analyzer.analyze_repository(
                     github_url, callback=progress_callback
                 )
 
-                # Store repo details
-                if "repo_details" in repo_analysis:
-                    combined_analysis["repo_details"].append(
-                        repo_analysis["repo_details"]
-                    )
+                # Create a project result with repository analysis
+                project_result = {
+                    "project_name": project_name,
+                    "project_description": project_description,
+                    "project_github_url": raw_github_urls,
+                    "github_urls": github_urls,
+                    "project_owner_github_url": owner_github_urls,
+                    "project_url": project_url,
+                    "analysis": repo_analysis
+                }
 
-                # Update combined code quality score
-                if "code_quality" in repo_analysis:
-                    quality = repo_analysis["code_quality"]
-                    if isinstance(quality, dict) and "overall_score" in quality:
-                        # Increment count and add to total score
-                        combined_analysis["code_quality"]["repositories_analyzed"] += 1
-                        combined_analysis["code_quality"]["overall_score"] += quality[
-                            "overall_score"
-                        ]
+                # Add to results
+                results.append(project_result)
 
-                        # Preserve detailed metrics from the first repository
-                        # Since this is a single-repo analysis most of the time, this preserves the detailed metrics
-                        # For multi-repo, we'll just use the first repo's detailed metrics as a sample
-                        if (
-                            combined_analysis["code_quality"]["repositories_analyzed"]
-                            == 1
-                        ):
-                            # Copy detailed metrics if they exist
-                            for key in [
-                                "readability",
-                                "standards",
-                                "complexity",
-                                "testing",
-                                "ai_analysis",
-                                "metrics",
-                            ]:
-                                if key in quality:
-                                    combined_analysis["code_quality"][key] = quality[
-                                        key
-                                    ]
-
-                # Update Celo integration status
-                if "celo_integration" in repo_analysis:
-                    celo_integration = repo_analysis["celo_integration"]
-                    if (
-                        isinstance(celo_integration, dict)
-                        and "integrated" in celo_integration
-                    ):
-                        if celo_integration["integrated"]:
-                            # Mark project as Celo-integrated if any repo is integrated
-                            combined_analysis["celo_integration"]["integrated"] = True
-                            combined_analysis["celo_integration"][
-                                "repositories_with_celo"
-                            ] += 1
-
-                            # Append evidence if available
-                            if (
-                                "evidence" in celo_integration
-                                and celo_integration["evidence"]
-                            ):
-                                # Add repo name to evidence for clarity
-                                for evidence in celo_integration["evidence"]:
-                                    evidence["repository"] = github_url
-                                combined_analysis["celo_integration"][
-                                    "evidence"
-                                ].extend(celo_integration["evidence"])
+                # Stop spinner
+                spinner.stop(
+                    f"Completed analysis of {github_url}"
+                )
 
             except Exception as e:
                 logger.error(f"Error analyzing {github_url}: {str(e)}")
-                spinner.update(f"Error analyzing {github_url}: {str(e)}")
+                spinner.stop(f"Error analyzing {github_url}: {str(e)}")
 
-        # Calculate the average code quality score if we analyzed any repositories
-        if combined_analysis["code_quality"]["repositories_analyzed"] > 0:
-            avg_score = (
-                combined_analysis["code_quality"]["overall_score"]
-                / combined_analysis["code_quality"]["repositories_analyzed"]
-            )
-            combined_analysis["code_quality"]["overall_score"] = avg_score
+                # Create a project result with error
+                project_result = {
+                    "project_name": project_name,
+                    "project_description": project_description,
+                    "project_github_url": raw_github_urls,
+                    "github_urls": github_urls,
+                    "project_owner_github_url": owner_github_urls,
+                    "project_url": project_url,
+                    "analysis": {"error": str(e)}
+                }
 
-        # Clear the line first to avoid overlap issues
-        print(f"\r{' ' * 100}", end="", flush=True)
-
-        # Final update when done
-        spinner.stop(
-            f"Completed analysis of {len(github_urls)} repositories for {project_name}"
-        )
-
-        # Combine project info with analysis results
-        project_result = {
-            "project_name": project_name,
-            "project_description": project_description,
-            "project_github_url": raw_github_urls,  # Keep the original value
-            "github_urls": github_urls,  # Add the list of URLs
-            "project_owner_github_url": owner_github_urls,
-            "project_url": project_url,
-            "analysis": combined_analysis,
-        }
-
-        results.append(project_result)
-
-        # Basic success message
-        logger.info(f"Successfully analyzed {project_name}")
-
-        # Log code quality score and Celo integration status
-        if "code_quality" in combined_analysis:
-            score = combined_analysis["code_quality"].get("overall_score", 0)
-            repos_analyzed = combined_analysis["code_quality"].get(
-                "repositories_analyzed", 0
-            )
-            logger.info(
-                f"Code quality score for {project_name}: {score:.2f}/100 (based on {repos_analyzed} repositories)"
-            )
-
-        # Log Celo integration status
-        if "celo_integration" in combined_analysis:
-            is_integrated = combined_analysis["celo_integration"].get(
-                "integrated", False
-            )
-            repos_with_celo = combined_analysis["celo_integration"].get(
-                "repositories_with_celo", 0
-            )
-            logger.info(
-                f"Celo integration for {project_name}: {'Yes' if is_integrated else 'No'} ({repos_with_celo}/{len(github_urls)} repositories)"
-            )
+                results.append(project_result)
 
         # Update progress bar
         progress_bar.update(1)
@@ -413,6 +306,7 @@ def main():
     )
     parser.add_argument("--output", default="reports", help="Directory to save reports")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--model", default=None, help="Model provider (anthropic, openai, google)")
     args = parser.parse_args()
 
     # Set logging level based on verbosity
@@ -425,6 +319,8 @@ def main():
     print(f"  {colors['cyan']}📊 Input:{colors['reset']} {args.excel}")
     print(f"  {colors['cyan']}⚙️  Config:{colors['reset']} {args.config}")
     print(f"  {colors['cyan']}📁 Output:{colors['reset']} {args.output}")
+    if args.model:
+        print(f"  {colors['cyan']}🤖 Model:{colors['reset']} {args.model}")
 
     print(f"\n{colors['yellow']}Starting analysis...{colors['reset']}\n")
 
@@ -444,10 +340,10 @@ def main():
         spinner.update(f"Analyzing {project_count} projects")
 
         # Analyze projects
-        results = analyze_projects(projects_df, args.config)
+        results = analyze_projects(projects_df, args.config, args.model, args.verbose)
 
         # Generate reports
-        spinner.update(f"Generating reports for {project_count} projects")
+        spinner.update(f"Generating reports for {len(results)} projects")
         generate_report(results, args.output)
 
         # Calculate elapsed time
