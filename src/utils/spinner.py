@@ -59,14 +59,8 @@ class Spinner:
         # Update animation frame
         self.index = (self.index + 1) % len(self.current_frames)
         
-        # Calculate elapsed time
-        elapsed = time.time() - self.start_time
-        
-        # Format the message with elapsed time
-        if "running for" in self.message or "completed in" in self.message:
-            display_message = self.message
-        else:
-            display_message = f"{self.message} ({elapsed:.1f}s)"
+        # Use message without showing live time
+        display_message = self.message
         
         # Clear line completely first
         print("\r" + " " * 120, end="", flush=True)
@@ -134,6 +128,7 @@ class Spinner:
         else:
             icon = f"{self.colors['green']}✓{self.colors['reset']}"  # Checkmark for success
         
+        # Include elapsed time in final message
         message = f"{self.colors['bold']}{final_message}{self.colors['reset']}"
         elapsed_text = f"{self.colors['yellow']}(completed in {elapsed:.1f}s){self.colors['reset']}"
         
@@ -171,8 +166,10 @@ def run_with_active_spinner(
         
         try:
             # Run the function
+            start_time = time.time()
             result = func(*args, **kwargs)
-            spinner.stop("Completed successfully")
+            elapsed = time.time() - start_time
+            spinner.stop(f"{message} completed in {elapsed:.1f}s")
             return result
         except Exception as e:
             spinner.stop(f"Error: {str(e)}")
@@ -206,7 +203,7 @@ def run_with_active_spinner(
             # Update spinner after completion only if there wasn't a final update from the function
             elapsed = time.time() - start_time
             if message and original_message:
-                callback(f"{original_message} (completed in {elapsed:.1f}s)")
+                callback(f"{original_message} completed in {elapsed:.1f}s")
                 
             return result
         except Exception as e:

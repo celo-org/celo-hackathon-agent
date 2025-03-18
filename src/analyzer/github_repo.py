@@ -70,14 +70,16 @@ class GitHubRepository:
         
         try:
             # Use gitingest to get repository content
-            print(f"Fetching repository data for {repo_owner}/{repo_name} using Gitingest...")
+            start_time = time.time()
+            print(f"Fetching repository data for {repo_owner}/{repo_name}...")
             summary, tree, content = ingest(repo_url)
             self.repo_data = {
                 "summary": summary,
                 "tree": tree,
                 "content": content
             }
-            print(f"Successfully fetched repository data for {repo_owner}/{repo_name}")
+            elapsed = time.time() - start_time
+            print(f"Fetched repository data for {repo_owner}/{repo_name} in {elapsed:.1f}s")
         except Exception as e:
             print(f"Error fetching repository with Gitingest: {str(e)}")
             self.repo_data = None
@@ -243,9 +245,10 @@ class GitHubRepository:
         self.code_sample_files = []  # Clear previous file names
         
         if progress_callback:
-            progress_callback("Analyzing repository structure...")
+            progress_callback("Analyzing repository structure")
         
         try:
+            start_time = time.time()
             # Extract file tree from gitingest data
             tree = self.repo_data["tree"]
             content = self.repo_data["content"]
@@ -267,16 +270,13 @@ class GitHubRepository:
                         doc_file_count += 1
             
             if progress_callback:
-                progress_callback(f"Found {file_count} files, extracting code samples...")
+                progress_callback(f"Extracting code samples from {file_count} files")
             
             # Extract code samples from the content
             file_pattern = r"```\s*(\S+)\s*\n(.*?)```"
             file_blocks = re.finditer(file_pattern, content, re.DOTALL)
             
             for i, match in enumerate(file_blocks):
-                if progress_callback and i % 5 == 0:
-                    progress_callback(f"Processed {i} code samples...")
-                
                 file_path = match.group(1)
                 file_content = match.group(2)
                 
@@ -297,8 +297,9 @@ class GitHubRepository:
             }
             
             # Final progress update
+            elapsed = time.time() - start_time
             if progress_callback:
-                progress_callback(f"Completed collecting {len(code_samples)} code samples from {file_count} files")
+                progress_callback(f"Collected {len(code_samples)} code samples from {file_count} files")
             
             return file_metrics, code_samples
             
