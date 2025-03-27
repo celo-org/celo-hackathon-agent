@@ -11,9 +11,11 @@ import pandas as pd
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from src.analyzer.repo_analyzer import RepositoryAnalyzer
-from src.reporting.report_generator import generate_report
+from src.reporting.report_generator import generate_reports
 from src.utils.logger import logger, configure_logger
 
 # Load environment variables from .env file
@@ -34,21 +36,23 @@ def load_projects(excel_path: str) -> pd.DataFrame:
 
     try:
         df = pd.read_excel(excel_path)
-        
+
         # Handle new format with "Name", "Github URL", "Description"
         if all(col in df.columns for col in ["Name", "Github URL", "Description"]):
             logger.debug("Detected new Excel format, converting to internal format")
             # Create a new DataFrame with the required column names
-            new_df = pd.DataFrame({
-                "project_name": df["Name"],
-                "project_description": df["Description"],
-                "project_github_url": df["Github URL"],
-                # Set empty values for missing columns
-                "project_owner_github_url": "",
-                "project_url": ""
-            })
+            new_df = pd.DataFrame(
+                {
+                    "project_name": df["Name"],
+                    "project_description": df["Description"],
+                    "project_github_url": df["Github URL"],
+                    # Set empty values for missing columns
+                    "project_owner_github_url": "",
+                    "project_url": "",
+                }
+            )
             df = new_df
-            
+
         # Handle legacy format
         else:
             required_columns = [
@@ -76,8 +80,10 @@ def load_projects(excel_path: str) -> pd.DataFrame:
 
 
 def analyze_projects(
-    projects_df: pd.DataFrame, config_path: str = "config.json", 
-    model_provider: Optional[str] = None, verbose: bool = False
+    projects_df: pd.DataFrame,
+    config_path: str = "config.json",
+    model_provider: Optional[str] = None,
+    verbose: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Analyze projects from DataFrame.
@@ -92,7 +98,9 @@ def analyze_projects(
         List of dictionaries containing analysis results
     """
     total_projects = len(projects_df)
-    logger.info(f"Starting analysis of {total_projects} projects", step="Project Analysis")
+    logger.info(
+        f"Starting analysis of {total_projects} projects", step="Project Analysis"
+    )
 
     # Initialize repository analyzer with the specified model provider
     analyzer = RepositoryAnalyzer(config_path, model_provider, verbose=verbose)
@@ -116,7 +124,7 @@ def analyze_projects(
         elif pd.notna(raw_owner_urls):  # Check if it's not NaN
             # If it's not a string (might be a single URL without commas)
             owner_github_urls = [str(raw_owner_urls)]
-        
+
         # Get project URL
         project_url = row["project_url"]
 
@@ -143,17 +151,17 @@ def analyze_projects(
                 "project_github_url": "No valid GitHub URL provided",
                 "project_owner_github_url": owner_github_urls,
                 "project_url": project_url,
-                "analysis": {
-                    "error": "No valid GitHub URL provided"
-                },
+                "analysis": {"error": "No valid GitHub URL provided"},
             }
 
             results.append(project_result)
             continue
 
         # Log the analysis
-        logger.info(f"Analyzing project {index+1}/{total_projects}: {project_name}", 
-                   step=f"Project {index+1}/{total_projects}")
+        logger.info(
+            f"Analyzing project {index+1}/{total_projects}: {project_name}",
+            step=f"Project {index+1}/{total_projects}",
+        )
 
         # Analyze each GitHub repository
         for url_index, github_url in enumerate(github_urls):
@@ -184,7 +192,7 @@ def analyze_projects(
                     "github_urls": github_urls,
                     "project_owner_github_url": owner_github_urls,
                     "project_url": project_url,
-                    "analysis": repo_analysis
+                    "analysis": repo_analysis,
                 }
 
                 # Add to results
@@ -204,7 +212,7 @@ def analyze_projects(
                     "github_urls": github_urls,
                     "project_owner_github_url": owner_github_urls,
                     "project_url": project_url,
-                    "analysis": {"error": str(e)}
+                    "analysis": {"error": str(e)},
                 }
 
                 results.append(project_result)
@@ -254,12 +262,14 @@ def main():
     )
     parser.add_argument("--output", default="reports", help="Directory to save reports")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
-    parser.add_argument("--model", default=None, help="Model provider (anthropic, openai, google)")
+    parser.add_argument(
+        "--model", default=None, help="Model provider (anthropic, openai, google)"
+    )
     args = parser.parse_args()
 
     # Configure logger with verbosity
     configure_logger(args.verbose)
-    
+
     if args.verbose:
         logger.debug("Verbose logging enabled")
 
@@ -274,20 +284,22 @@ def main():
     print(f"\n{colors['yellow']}Starting analysis...{colors['reset']}\n")
 
     logger.info("Starting analysis process", step="Analysis")
-    
+
     try:
         # Load projects from Excel
         projects_df = load_projects(args.excel)
 
         # Get project count
         project_count = len(projects_df)
-        
+
         # Analyze projects
         results = analyze_projects(projects_df, args.config, args.model, args.verbose)
 
         # Generate reports
-        logger.info(f"Generating reports for {len(results)} projects", step="Report Generation")
-        generate_report(results, args.output)
+        logger.info(
+            f"Generating reports for {len(results)} projects", step="Report Generation"
+        )
+        generate_reports(results, args.output)
         logger.step_complete("Report Generation")
 
         # Complete overall analysis
