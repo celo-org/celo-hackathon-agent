@@ -5,6 +5,7 @@ Repository analyzer that combines all analysis components.
 import os
 import time
 import json
+import re
 from typing import Dict, Any, Optional, Callable
 
 from langchain_anthropic import ChatAnthropic
@@ -59,6 +60,8 @@ ANALYSIS INSTRUCTIONS:
    - Assess correctness of Celo-specific implementation
    - Evaluate security practices in blockchain interactions
    - Analyze gas optimization in smart contracts (if applicable)
+   - IMPORTANT: Look for and extract any deployed smart contract addresses from code or README
+   - IMPORTANT: Note which blockchain network deployments exist on (mainnet, testnet, alfajores, etc.)
 
 5. Key Findings & Recommendations (15%):
    - Highlight 3-5 significant strengths of the implementation
@@ -77,6 +80,12 @@ Return your analysis as a structured JSON object with this exact format:
     "completeness": "Assessment of project completeness (0-100%)",
     "production_readiness": "Assessment of production readiness (0-100%)"
   },
+  "deployment": {
+    "site_url": "Live deployed site URL (if found in README or code)",
+    "contract_addresses": [
+      {"network": "Network name (e.g., Celo Mainnet, Alfajores)", "address": "Contract address", "contract_name": "Name of contract"}
+    ]
+  },
   "code_quality": {
     "overall_score": number,
     "readability": {"score": number, "analysis": "Detailed analysis with examples"},
@@ -93,6 +102,7 @@ Return your analysis as a structured JSON object with this exact format:
     "security_assessment": {"score": number, "findings": ["Security finding 1", "Security finding 2"]},
     "gas_optimization": {"score": number, "findings": ["Optimization note 1", "Optimization note 2"]},
     "evidence": ["File path or code snippet showing Celo integration"],
+    "contract_addresses": ["Deployed contract addresses found in code or README"],
     "overall_score": number
   },
   "architecture": {
@@ -133,6 +143,18 @@ IMPORTANT GUIDELINES:
 - If Celo integration is minimal or absent, provide suggestions for integration
 - Focus on substantive technical issues rather than stylistic preferences
 - Clearly indicate your confidence level in each area of analysis
+- IMPORTANT: Only include deployed contract addresses that are clearly identified as such
+- When reporting contract addresses:
+  - ONLY include addresses with clear deployment context (e.g., "deployed at", "contract address:", etc.)
+  - Do NOT include addresses that appear to be example addresses, test addresses, or wallet addresses
+  - If no deployed contract addresses are found, use "N/A" or empty array, DO NOT make up addresses
+  - Each address should have a confidence rating (high/medium/low) about whether it's a deployed contract
+  - Include the network (mainnet/testnet/alfajores) if this information is available
+- For deployed site URLs:
+  - Only include URLs that are clearly identified as deployed applications
+  - If no deployed site is found, use "N/A" or empty string, DO NOT make up URLs
+- Review the "Deployment Information" section of the digest carefully for validated contract addresses
+- Pay special attention to the "Confidence" indicator for contract addresses
 """
 
 
@@ -381,6 +403,33 @@ class RepositoryAnalyzer:
         digest += f"Forks: {repo_details['forks']}\n"
         digest += f"Main Language: {repo_details['language']}\n\n"
 
+        # Extract potential deployment information from README
+        readme_content = self._extract_readme_content(code_samples)
+        if readme_content:
+            # Look for deployed site URLs in README
+            site_urls = self._extract_site_urls(readme_content)
+            if site_urls:
+                digest += "## Deployment Information (from README)\n"
+                digest += "Potential deployed site URLs:\n"
+                for url in site_urls:
+                    digest += f"- {url}\n"
+                digest += "\n"
+
+            # Look for contract addresses in README
+            contract_addresses = self._extract_contract_addresses(readme_content)
+            if contract_addresses:
+                if "## Deployment Information (from README)" not in digest:
+                    digest += "## Deployment Information (from README)\n"
+                digest += "Potential deployed contract addresses:\n"
+                for addr_info in contract_addresses:
+                    network = addr_info.get("network", "unknown")
+                    context = addr_info.get("context", "")
+                    digest += f"- Network: {network}, Address: {addr_info['address']}\n"
+                    digest += f"  Context: {context}\n"
+                digest += "\n"
+            elif "## Deployment Information (from README)" in digest:
+                digest += "No deployed contract addresses found in README.\n\n"
+
         # Add language breakdown if available
         if repo_details.get("main_languages"):
             digest += "## Language Breakdown\n"
@@ -402,6 +451,31 @@ class RepositoryAnalyzer:
                 digest += f"- Found keyword '{evidence['keyword']}' in file '{evidence['file']}'\n"
             digest += "\n"
 
+        # Add contract addresses found in code files
+        code_contract_addresses = self._extract_contract_addresses_from_code(
+            code_samples
+        )
+        if code_contract_addresses:
+            digest += "## Deployed Contract Addresses Found in Code\n"
+            digest += (
+                "These addresses appear to be deployed contracts based on context:\n\n"
+            )
+            for address_info in code_contract_addresses:
+                if address_info.get("is_likely_deployed", False):
+                    digest += f"- Address: {address_info['address']}\n"
+                    digest += f"  File: {address_info['file']}\n"
+                    digest += f"  Context: {address_info['context']}\n"
+                    digest += f"  Confidence: High\n\n"
+                else:
+                    digest += f"- Address: {address_info['address']}\n"
+                    digest += f"  File: {address_info['file']}\n"
+                    digest += f"  Context: {address_info['context']}\n"
+                    digest += f"  Confidence: Low (may not be a deployed contract)\n\n"
+            digest += "\n"
+        else:
+            digest += "## Deployed Contract Addresses\n"
+            digest += "No deployed contract addresses found in code files.\n\n"
+
         # Add code samples
         digest += "## Code Samples\n"
         logger.debug(f"Adding {len(code_samples)} code samples to digest")
@@ -417,6 +491,386 @@ class RepositoryAnalyzer:
             logger.debug(f"Digest last 200 chars: {digest[-200:]}")
 
         return digest
+
+    def _extract_readme_content(self, code_samples: list) -> str:
+        """
+        Extract README content from code samples.
+
+        Args:
+            code_samples: List of code samples
+
+        Returns:
+            README content or empty string if not found
+        """
+        for sample in code_samples:
+            if "README" in sample or "readme" in sample:
+                # Extract content after the file header
+                content = sample.split("=" * 10, 2)[-1].strip()
+                return content
+        return ""
+
+    def _extract_site_urls(self, content: str) -> list:
+        """
+        Extract potential deployed site URLs from content.
+
+        Args:
+            content: Text content to search
+
+        Returns:
+            List of potential deployed site URLs
+        """
+        # Common patterns for deployed site URLs
+        patterns = [
+            r"(?:deployed|live|demo|website|app|application|site)\s+(?:at|url|link|here)?\s*[:\-=]?\s*(https?://\S+)",
+            r"(?:check out|visit|view|access|try|test)\s+(?:the|our|the demo|our demo)?\s+(?:app|site|application|demo|website)\s+(?:at|here)?\s*[:\-=]?\s*(https?://\S+)",
+            r"(?:app|application|site|website|demo)\s+(?:is|live|available|deployed)\s+(?:at|here|on|via|at url)?\s*[:\-=]?\s*(https?://\S+)",
+            r"(?:frontend|UI|website|application)\s+(?:deployed|hosted|available)\s+(?:at|on|via)?\s*[:\-=]?\s*(https?://\S+)",
+            # Simple URL pattern as fallback but only for vercel/netlify/github.io/firebase domains
+            r"(https?://(?:[a-zA-Z0-9-]+\.vercel\.app|[a-zA-Z0-9-]+\.netlify\.app|[a-zA-Z0-9-]+\.github\.io|[a-zA-Z0-9-]+\.web\.app|[a-zA-Z0-9-]+\.firebaseapp\.com)/\S*)",
+        ]
+
+        results = []
+        for pattern in patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            for match in matches:
+                # Clean up the URL
+                url = (
+                    match.strip(',:;.()"`\'"').split()[0]
+                    if isinstance(match, str)
+                    else match[0].strip(',:;.()"`\'"').split()[0]
+                )
+                if url not in results:
+                    results.append(url)
+
+        return results
+
+    def _extract_contract_addresses(self, content: str) -> list:
+        """
+        Extract potential contract addresses from content.
+
+        Args:
+            content: Text content to search
+
+        Returns:
+            List of potential contract addresses with network and context
+        """
+        # Structure for detailed contract address information
+        structured_addresses = []
+
+        # Look for deployed contract addresses with specific context
+        # Pattern for addresses with "deployed" context
+        deployed_patterns = [
+            r"(?:deployed|published|created)\s+(?:contract|smart contract|)\s+(?:to|at|on)\s+(?:address)?\s*[:\-=]?\s*(0x[a-fA-F0-9]{40})",
+            r"(?:contract|smart contract)\s+(?:address|deployed at)\s*[:\-=]?\s*(0x[a-fA-F0-9]{40})",
+            r"(?:address|contract address)[:\-=]?\s*(0x[a-fA-F0-9]{40})",
+        ]
+
+        # Network identification patterns
+        network_patterns = {
+            "celo mainnet": [r"(?:celo|main)(?:net)?", r"production"],
+            "alfajores": [r"alfajores", r"test(?:net)?"],
+            "baklava": [r"baklava", r"test(?:net)?"],
+        }
+
+        # Extract addresses with deployment context
+        for pattern in deployed_patterns:
+            matches = re.finditer(pattern, content, re.IGNORECASE)
+            for match in matches:
+                # Get the full line for context
+                line_start = content[: match.start()].rfind("\n")
+                if line_start == -1:
+                    line_start = 0
+                line_end = content.find("\n", match.end())
+                if line_end == -1:
+                    line_end = len(content)
+
+                full_line = content[line_start:line_end].strip()
+                address = match.group(1).strip(',:;.()"`\'"')
+
+                # Skip if address doesn't match the exact format (0x + 40 hex chars)
+                if not re.match(r"^0x[a-fA-F0-9]{40}$", address):
+                    continue
+
+                # Determine network
+                network = "unknown"
+                for net_name, patterns in network_patterns.items():
+                    for net_pattern in patterns:
+                        if re.search(net_pattern, full_line, re.IGNORECASE):
+                            network = net_name
+                            break
+                    if network != "unknown":
+                        break
+
+                # Add to structured addresses
+                structured_addresses.append(
+                    {
+                        "address": address,
+                        "network": network,
+                        "context": full_line,
+                        "is_likely_deployed": True,  # This is likely a deployed contract due to context
+                    }
+                )
+
+        # If no deployed addresses found with specific context, look for generic addresses
+        if not structured_addresses:
+            # Simple contract address pattern as fallback
+            simple_pattern = r"(0x[a-fA-F0-9]{40})"
+            matches = re.finditer(simple_pattern, content)
+
+            for match in matches:
+                address = match.group(1)
+
+                # Skip if address doesn't match the exact format
+                if not re.match(r"^0x[a-fA-F0-9]{40}$", address):
+                    continue
+
+                # Get surrounding context (20 chars before and after)
+                context_start = max(0, match.start() - 20)
+                context_end = min(len(content), match.end() + 20)
+                context = content[context_start:context_end].strip()
+
+                # Check if this appears to be a deployed contract
+                is_deployed = False
+                deploy_keywords = ["deploy", "contract", "address", "published"]
+                for keyword in deploy_keywords:
+                    if keyword in context.lower():
+                        is_deployed = True
+                        break
+
+                # Only include if it's likely a deployed contract
+                if is_deployed:
+                    structured_addresses.append(
+                        {
+                            "address": address,
+                            "network": "unknown",
+                            "context": context,
+                            "is_likely_deployed": False,  # This is less certain
+                        }
+                    )
+
+        # Further filter to remove false positives
+        filtered_addresses = []
+        for addr_info in structured_addresses:
+            # Skip if context suggests this isn't a deployed contract
+            lower_context = addr_info["context"].lower()
+
+            # Negative indicators (skip if present)
+            negative_indicators = [
+                "recipient",
+                "from address",
+                "to address",
+                "sender",
+                "receiver",
+                "wallet",
+                "account",
+                "example",
+                "sample",
+                "transfer",
+                "send to",
+            ]
+
+            if any(indicator in lower_context for indicator in negative_indicators):
+                continue
+
+            # Check for positive deployment indicators
+            positive_indicators = [
+                "deployed",
+                "contract",
+                "publish",
+                "create",
+                "deploy",
+            ]
+
+            # Only include addresses with clear deployment context or that were categorized as likely deployed
+            if addr_info["is_likely_deployed"] or any(
+                indicator in lower_context for indicator in positive_indicators
+            ):
+                filtered_addresses.append(addr_info)
+
+        # Return only unique addresses (no duplicates)
+        unique_addresses = []
+        unique_addr_values = set()
+
+        for addr_info in filtered_addresses:
+            if addr_info["address"] not in unique_addr_values:
+                unique_addr_values.add(addr_info["address"])
+                unique_addresses.append(addr_info)
+
+        return unique_addresses
+
+    def _extract_contract_addresses_from_code(self, code_samples: list) -> list:
+        """
+        Extract potential contract addresses from code samples.
+
+        Args:
+            code_samples: List of code samples
+
+        Returns:
+            List of potential contract addresses with file info
+        """
+        contract_addresses = []
+        for sample in code_samples:
+            # Skip if it's a README or image file
+            if (
+                "README" in sample
+                or "readme" in sample
+                or any(
+                    ext in sample for ext in [".png", ".jpg", ".jpeg", ".gif", ".svg"]
+                )
+            ):
+                continue
+
+            # Extract file name
+            file_name = ""
+            file_match = re.search(r"={10,}\nFile: (.*?)\n={10,}", sample)
+            if file_match:
+                file_name = file_match.group(1)
+            else:
+                continue
+
+            # Extract content
+            content = sample.split("=" * 10, 2)[-1].strip()
+
+            # Skip files that likely contain example addresses rather than deployed contracts
+            lower_file = file_name.lower()
+            if any(
+                term in lower_file
+                for term in ["test", "example", "mock", "sample", "spec"]
+            ):
+                continue
+
+            # Look for contract addresses with deployment context
+            # First look for specific deployment patterns
+            deploy_patterns = [
+                r"(?:deploy(?:ed)?|publish(?:ed)?)\s+(?:to|at|on|contract)?\s*[:\-=]?\s*[\"'](0x[a-fA-F0-9]{40})[\"']",
+                r"[\"'](?:contractAddress|deployedAddress|contractAddr)[\"']\s*:\s*[\"'](0x[a-fA-F0-9]{40})[\"']",
+                r"(?:const|let|var)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:ContractAddress|DeployedContract|DeployedAddr))(?:\s*:\s*string)?\s*=\s*[\"'](0x[a-fA-F0-9]{40})[\"']",
+            ]
+
+            for pattern in deploy_patterns:
+                if "ContractAddress" in pattern:
+                    # Special case for variable pattern which has two groups
+                    matches = re.findall(pattern, content)
+                    for var_name, address in matches:
+                        if re.match(r"^0x[a-fA-F0-9]{40}$", address):
+                            contract_addresses.append(
+                                {
+                                    "address": address,
+                                    "file": file_name,
+                                    "context": f"Deployed contract variable: {var_name}",
+                                    "is_likely_deployed": True,
+                                }
+                            )
+                else:
+                    # Regular pattern with one group
+                    matches = re.findall(pattern, content)
+                    for address in matches:
+                        if re.match(r"^0x[a-fA-F0-9]{40}$", address):
+                            contract_addresses.append(
+                                {
+                                    "address": address,
+                                    "file": file_name,
+                                    "context": "Deployment context",
+                                    "is_likely_deployed": True,
+                                }
+                            )
+
+            # Look for contract configuration in config or env files
+            if any(
+                term in lower_file
+                for term in ["config", ".env", "environment", "deploy", "contract"]
+            ):
+                # Look for patterns in config files
+                config_patterns = [
+                    r"[\"'](?:CONTRACT_ADDRESS|CONTRACT_ADDR|DEPLOYED_ADDRESS|DEPLOYED_CONTRACT)[\"']\s*[=:]\s*[\"'](0x[a-fA-F0-9]{40})[\"']",
+                    r"(?:CONTRACT_ADDRESS|CONTRACT_ADDR|DEPLOYED_ADDRESS|DEPLOYED_CONTRACT)\s*=\s*[\"']?(0x[a-fA-F0-9]{40})[\"']?",
+                    r"[\"'](?:address|contractAddress|addr)[\"']\s*:\s*[\"'](0x[a-fA-F0-9]{40})[\"']",
+                ]
+
+                for pattern in config_patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    for address in matches:
+                        if re.match(r"^0x[a-fA-F0-9]{40}$", address):
+                            contract_addresses.append(
+                                {
+                                    "address": address,
+                                    "file": file_name,
+                                    "context": "Config/env file",
+                                    "is_likely_deployed": True,
+                                }
+                            )
+
+            # For non-config files, be more selective about which addresses to include
+            elif not any(
+                term in lower_file for term in ["config", ".env", "deploy", "contract"]
+            ):
+                # Skip unnecessary files that often contain non-deployed addresses
+                if any(
+                    term in lower_file for term in ["test", "example", "mock", "sample"]
+                ):
+                    continue
+
+                # Look for variable declarations with specific naming conventions suggesting deployment
+                var_patterns = [
+                    r"(?:const|let|var)\s+([a-zA-Z_][a-zA-Z0-9_]*(?:ContractAddress|DeployedContract|ContractAddr))(?:\s*:\s*string)?\s*=\s*[\"'](0x[a-fA-F0-9]{40})[\"']",
+                    r"(?:const|let|var)\s+([a-zA-Z_][a-zA-Z0-9_]*Address)(?:\s*:\s*string)?\s*=\s*[\"'](0x[a-fA-F0-9]{40})[\"']",
+                ]
+
+                for pattern in var_patterns:
+                    matches = re.findall(pattern, content)
+                    for var_name, address in matches:
+                        # Skip if the variable suggests this isn't a deployed contract
+                        lower_var = var_name.lower()
+                        if any(
+                            term in lower_var
+                            for term in [
+                                "example",
+                                "sample",
+                                "test",
+                                "recipient",
+                                "sender",
+                                "wallet",
+                            ]
+                        ):
+                            continue
+
+                        if re.match(r"^0x[a-fA-F0-9]{40}$", address):
+                            # Check variable name to determine if it's likely a deployed contract
+                            is_likely_deployed = any(
+                                term in lower_var
+                                for term in ["contract", "deploy", "publish"]
+                            )
+
+                            contract_addresses.append(
+                                {
+                                    "address": address,
+                                    "file": file_name,
+                                    "context": f"Variable: {var_name}",
+                                    "is_likely_deployed": is_likely_deployed,
+                                }
+                            )
+
+        # Filter the addresses to remove false positives
+        filtered_addresses = []
+        seen_addresses = set()
+
+        # First add all addresses marked as likely deployed
+        for addr_info in contract_addresses:
+            if (
+                addr_info["is_likely_deployed"]
+                and addr_info["address"] not in seen_addresses
+            ):
+                filtered_addresses.append(addr_info)
+                seen_addresses.add(addr_info["address"])
+
+        # If no likely deployed addresses found, include other addresses but mark them as uncertain
+        if not filtered_addresses:
+            for addr_info in contract_addresses:
+                if addr_info["address"] not in seen_addresses:
+                    filtered_addresses.append(addr_info)
+                    seen_addresses.add(addr_info["address"])
+
+        return filtered_addresses
 
     def _analyze_with_llm(
         self, repo_digest: str, callback: Optional[Callable] = None
