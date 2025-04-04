@@ -1,0 +1,39 @@
+# Project Analysis Report
+
+## Project Scores
+
+| Criteria | Score (0-100) | Justification |
+|----------|---------------|---------------|
+| Security | {{score}} | Brief justification |
+| Functionality & Correctness | {{score}} | Brief justification |
+| Readability & Understandability | {{score}} | Brief justification | 
+| Dependencies & Setup | {{score}} | Brief justification |
+| Evidence of Technical Usage | {{score}} | Brief justification |
+| **Overall Score** | {{score}} | Weighted average |
+
+## Project Summary
+[High-level overview of the project]
+
+## Technology Stack
+[Key technologies used]
+
+## Architecture and Structure
+[Project structure and organization]
+
+## Security Analysis
+[Security considerations and approaches]
+
+## Functionality & Correctness
+[Core functionality implementation]
+
+## Readability & Understandability
+[Code quality and documentation]
+
+## Dependencies & Setup
+[Project dependencies and configuration]
+
+## Evidence of Technical Usage
+[How the project implements specific technologies]
+
+## Suggestions & Next Steps
+[Recommendations for improvement]

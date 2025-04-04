@@ -1,0 +1,50 @@
+# AI Project Analyzer - Cursor Rules
+
+This file provides context and rules for Cursor AI when working with this codebase.
+
+## Codebase Overview
+
+This project is an AI-powered repository analyzer that uses LLMs (specifically Google Gemini) to evaluate GitHub repositories. It generates structured analysis reports with standardized scoring across multiple criteria.
+
+Key components:
+- `src/fetcher.py`: Fetches repository content using the gitingest library
+- `src/analyzer.py`: Processes code digests through Gemini LLM
+- `src/reporter.py`: Generates and saves analysis reports
+- `src/config.py`: Handles environment configuration
+- `src/cli.py`: Provides command-line interface
+- `prompts/`: Contains analysis templates for different contexts
+
+## Core Workflows
+
+1. User provides GitHub repository URLs
+2. System fetches repository content using gitingest
+3. LLM analyzes the code digest using specified prompt
+4. Reports are generated in timestamp-based directories
+
+## Coding Rules
+
+1. **Project Structure**
+   - Keep the current module organization
+   - Place all new prompts in the `prompts/` directory
+
+2. **Dependencies**
+   - Use Python 3.11+ features
+   - Manage dependencies in pyproject.toml
+   - Core dependencies: langchain, gitingest, typer
+
+3. **Code Style**
+   - Line length: 100 chars max
+   - Type hints: Required for all functions
+   - Error handling: Use try/except with specific exception types
+   - Logging: Use standard logging with appropriate levels
+
+4. **Documentation**
+   - Google-style docstrings for classes and functions
+   - Module-level docstrings explaining purpose
+   - Clear in-line comments for complex logic
+
+5. **Best Practices**
+   - Separate concerns between modules
+   - Use batch processing for efficiency when possible
+   - Follow functional programming patterns where appropriate
+   - Implement robust error handling with retries

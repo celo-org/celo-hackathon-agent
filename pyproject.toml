@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-project-analyzer"
+version = "0.1.0"
+description = "Analyze GitHub projects using LLMs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+dependencies = [
+    "langchain",
+    "langchain-google-genai",
+    "python-dotenv",
+    "gitingest",
+    "typer[all]",
+    "rich",
+    "loguru",
+]
+
+[project.scripts]
+analyze = "src.cli:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"

@@ -1,6 +1,51 @@
-.venv
-sample_projects.xlsx
+# Environment and API keys
 .env
-reports/
+.venv/
+venv/
+env/
+
+# Python
 __pycache__/
-analysis.log
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Reports output
+reports/
+
+# Logs
+*.log
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+reports/
+.venv

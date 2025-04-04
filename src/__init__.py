@@ -1,0 +1,3 @@
+"""
+AI Project Analyzer package.
+"""

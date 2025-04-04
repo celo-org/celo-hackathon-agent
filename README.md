@@ -1,152 +1,179 @@
-# 🌱 Celo Hackathon Project Analyzer
+# AI Project Analyzer
 
-![Celo](https://img.shields.io/badge/Celo-Blockchain-brightgreen)
-![AI](https://img.shields.io/badge/AI-Powered-blue)
-![Python](https://img.shields.io/badge/Python-3.10+-yellow)
+A tool for analyzing GitHub repositories using LLMs.
 
-An intelligent tool that analyzes GitHub repositories for Celo hackathon projects, evaluating code quality and checking for Celo blockchain integration using AI-powered analysis.
+## Features
 
-## ✨ Features
+- Analyze multiple GitHub repositories at once
+- Use custom prompts for different types of analyses
+- Generate detailed project analysis reports in Markdown or JSON
+- Configurable model selection and parameters
+- Interactive progress tracking
+- Automatic retries for API failures
+- Built with LangChain and Google Gemini
 
-- 📊 **Multi-Repository Analysis**: Analyze multiple GitHub repositories from Excel data
-- 🔍 **Intelligent Code Review**: AI-powered assessment of code quality and best practices
-- 🔗 **Celo Integration Detection**: Automatically checks for Celo blockchain integration
-- 📝 **Detailed Reports**: Generates comprehensive reports with LLM-driven insights
-- 🧠 **Smart Recommendations**: Provides suggestions for improving code and integration
+## Installation
 
-## 🚀 Installation
-
-1. **Clone this repository**:
-   ```bash
-   git clone https://github.com/yourusername/celo-hackathon-agent.git
-   cd celo-hackathon-agent
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure API tokens**:
-   - Create a GitHub token with repo scope at [GitHub Settings](https://github.com/settings/tokens)
-   - Get an Anthropic API key from [Anthropic Console](https://console.anthropic.com/)
-   - Create a `.env` file:
-     ```
-     GITHUB_TOKEN=your_github_token_here
-     ANTHROPIC_API_KEY=your_anthropic_api_key_here
-     ```
-
-## 🛠️ Usage
-
-### 📋 Prepare Project Data
-
-Create an Excel file with the following columns:
-- `project_name`: Name of the project
-- `project_description`: Brief description of the project
-- `project_github_url`: URL of the project's GitHub repository (can be comma-separated for multiple repos)
-- `project_owner_github_url`: GitHub URLs of project owners (can be comma-separated)
-- `project_url`: Main website URL of the project
-
-Or generate sample data:
 ```bash
-python create_sample_data.py
+# Clone the repository
+git clone <repository-url>
+cd ai-project-analyzer
+
+# Install dependencies (using uv)
+uv pip install -e .
 ```
 
-### 🔍 Run the Analyzer
+## Configuration
 
-#### Using the Makefile (recommended):
+Copy the `.env.template` file to `.env` and fill in your API key:
+
 ```bash
-# Display available commands
-make help
-
-# Install dependencies
-make setup
-
-# Run in interactive mode
-make run
-
-# Analyze projects from an Excel file
-make run-excel FILE=sample_projects.xlsx VERBOSE=1
-
-# Analyze a GitHub repository directly
-make run-url URL="https://github.com/user/repo"
-
-# Analyze with custom project name
-make run-url URL="https://github.com/user/repo" NAME="My Project" VERBOSE=1
-
-# Clean up generated files
-make clean
+cp .env.template .env
+# Edit .env with your preferred text editor
 ```
 
-#### Using the interactive CLI tool:
+Required configuration:
+
+```
+GOOGLE_API_KEY=your_gemini_api_key_here
+```
+
+Optional configuration:
+
+```
+# Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+LOG_LEVEL=INFO
+
+# Default model to use
+DEFAULT_MODEL=gemini-pro
+
+# Temperature setting (0.0-1.0)
+TEMPERATURE=0.2
+```
+
+These environment variables can also be set directly in your shell environment.
+
+## Usage
+
 ```bash
-./devrel-agent.py
+# Basic usage
+uv run main.py --github-urls github.com/celo-org/celo-composer
+
+# Analyze multiple repositories
+uv run main.py --github-urls github.com/celo-org/celo-composer,github.com/celo-org/celo-monorepo
+
+# Use a custom prompt
+uv run main.py --github-urls github.com/celo-org/celo-composer --prompt prompts/celo.txt
+
+# Select a different model
+uv run main.py --github-urls github.com/celo-org/celo-composer --model gemini-1.5-pro
+
+# Adjust generation temperature (0.0-1.0)
+uv run main.py --github-urls github.com/celo-org/celo-composer --temperature 0.7
+
+# Output in JSON format
+uv run main.py --github-urls github.com/celo-org/celo-composer --json
+
+# Set logging level
+uv run main.py --github-urls github.com/celo-org/celo-composer --log-level DEBUG
+
+# Specify output directory
+uv run main.py --github-urls github.com/celo-org/celo-composer --output ./my-reports
+
+# Full example with all options
+uv run main.py \
+  --github-urls github.com/celo-org/celo-composer,github.com/celo-org/celo-monorepo \
+  --prompt prompts/celo.txt \
+  --model gemini-1.5-pro \
+  --temperature 0.3 \
+  --json \
+  --output ./reports \
+  --log-level INFO
 ```
 
-This will launch an interactive CLI that guides you through the process.
+## Available Models
 
-#### Using the legacy script:
-```bash
-python run.py --excel sample_projects.xlsx --output reports --verbose
+- `gemini-2.0-flash-lite`: Balanced model suitable for most use cases
+- `gemini-2.0-flash`: Advanced model with enhanced capabilities and performance
+
+## Custom Prompts and Scoring
+
+You can create custom prompts in the `prompts/` directory. See the existing files for examples.
+
+### Included Prompts and Templates
+
+The tool comes with:
+
+- `prompts/default.txt`: General project analysis prompt
+- `prompts/celo.txt`: Specialized prompt for Celo ecosystem projects
+- `prompts/report-template.txt`: Template for structuring analysis reports
+
+### Standardized Scoring Criteria
+
+All analyses include scores for these standard criteria:
+
+1. **Security** (0-100)
+   - Authentication & authorization
+   - Data validation
+   - Vulnerability prevention
+
+2. **Functionality & Correctness** (0-100)
+   - Core functionality implementation
+   - Error handling
+   - Edge case management
+
+3. **Readability & Understandability** (0-100)
+   - Code style consistency
+   - Documentation quality
+   - Naming conventions
+
+4. **Dependencies & Setup** (0-100)
+   - Dependencies management
+   - Installation process
+   - Configuration approach
+
+5. **Evidence of Technical Usage** (0-100)
+   - Technology-specific implementation
+   - Adherence to best practices
+   - Integration quality
+
+### Creating Custom Prompts
+
+To create your own custom prompt:
+
+1. Create a new text file in the `prompts/` directory
+2. Include scoring criteria following the standard template
+3. Add specific sections relevant to your technology
+4. Run the tool with `--prompt prompts/your-prompt.txt`
+
+For technology-specific prompts, be sure to include a detailed "Evidence of Usage" section that explains what indicators the LLM should look for to verify the technology is being used correctly.
+
+## Output Formats
+
+- **Markdown** (default): Human-readable reports with structured sections
+- **JSON**: Machine-readable structured data (use the `--json` flag)
+- **Summary Report**: Automatically generated when analyzing multiple repositories
+
+### Report Organization
+
+Reports are organized in a timestamp-based directory structure:
+
+```
+reports/
+└── MM-DD-YYYY-HHMM/
+    ├── celo-org-celo-composer-analysis.md
+    ├── celo-org-celo-monorepo-analysis.md
+    └── summary-report.md
 ```
 
-#### Using the CLI tool in non-interactive mode:
-```bash
-# Analyze from Excel file
-./devrel-agent.py --non-interactive --excel sample_projects.xlsx --verbose
+### Summary Reports
 
-# Analyze direct GitHub URLs (project name will be automatically extracted from repository name)
-./devrel-agent.py --non-interactive --urls "https://github.com/user/repo1,https://github.com/user/repo2" --verbose
+When analyzing multiple repositories, a summary report is automatically generated with:
 
-# Analyze direct GitHub URLs with custom project name
-./devrel-agent.py --non-interactive --urls "https://github.com/user/repo1,https://github.com/user/repo2" --project-name "My Project" --verbose
-```
+- Comparison table of all repository scores
+- Average scores across all analyzed repositories
+- Links to individual reports
 
-#### Optional Arguments:
-- `--config`: Path to custom configuration file (default: `config.json`)
-- `--output`: Directory to save reports (default: `reports`)
-- `--verbose`: Display detailed progress information
-
-### ⚙️ Configuration
-
-Customize the analysis by editing `config.json`:
-- `weights`: Adjust the weight of each code quality category
-- `celo_keywords`: Keywords to search for when checking Celo integration
-- `celo_files`: Files to check for Celo-related configurations
-
-## 📊 Project Structure
-
-```
-celo-hackathon-agent/
-├── src/
-│   ├── models/         # Data types and configuration
-│   ├── analyzer/       # Analysis components
-│   ├── utils/          # Utility functions
-│   ├── reporting/      # Report generation
-│   └── main.py         # Main application logic
-├── run.py              # Legacy entry point script
-├── devrel-agent.py     # Interactive CLI tool
-├── Makefile            # Simplified command interface
-├── config.json         # Configuration
-└── requirements.txt    # Dependencies
-```
-
-## 📝 Output
-
-The tool generates:
-- `summary.md`: Overview of all analyzed projects
-- Individual project reports with detailed analysis:
-  - AI-powered code quality assessment with explanations
-  - Analysis of coding standards and best practices
-  - Suggestions for code improvements
-  - Comprehensive evaluation of Celo blockchain integration
-  - Evidence and detailed analysis of Celo technology usage
-- `results.json`: Raw data in JSON format for further processing
-
-## 📄 License
+## License
 
 MIT
-
----
-
-Made with ❤️ for the Celo ecosystem
