@@ -1,5 +1,12 @@
 # Project Analysis Report
 
+## Repository Metrics
+- Stars: {{stars}}
+- Watchers: {{watchers}}
+- Forks: {{forks}}
+- Open Issues: {{open_issues}}
+- Total Contributors: {{contributors}}
+
 ## Project Scores
 
 | Criteria | Score (0-100) | Justification |
@@ -13,6 +20,29 @@
 
 ## Project Summary
 [High-level overview of the project]
+
+## Top Contributor Profile
+- Name: {{contributor_name}}
+- GitHub: {{contributor_github}}
+- Company: {{contributor_company}}
+- Location: {{contributor_location}}
+- Twitter: {{contributor_twitter}}
+- Website: {{contributor_website}}
+
+## PR Status
+- Open PRs: {{open_prs}}
+- Closed PRs: {{closed_prs}}
+- Merged PRs: {{merged_prs}}
+- Total PRs: {{total_prs}}
+
+## Repository Links
+- GitHub Repository: {{github_url}}
+- Owner Website: {{owner_website}}
+- Created: {{created_date}}
+- Last Updated: {{last_updated_date}}
+
+## Language Distribution
+[Programming language percentages]
 
 ## Technology Stack
 [Key technologies used]
@@ -34,6 +64,16 @@
 
 ## Evidence of Technical Usage
 [How the project implements specific technologies]
+
+## Codebase Breakdown
+### Strengths
+[List of codebase strengths]
+
+### Weaknesses
+[List of codebase weaknesses]
+
+### Missing or Buggy Features
+[Features that could be added or fixed]
 
 ## Suggestions & Next Steps
 [Recommendations for improvement]

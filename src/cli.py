@@ -6,7 +6,6 @@ This module provides the Typer CLI interface.
 
 import logging
 import typer
-from typing import List, Optional
 import time
 import os
 from rich.console import Console
@@ -32,9 +31,7 @@ def analyze(
     prompt: str = typer.Option(
         "prompts/default.txt", "--prompt", "-p", help="Path to the prompt file"
     ),
-    output: str = typer.Option(
-        "reports", "--output", "-o", help="Directory to save reports"
-    ),
+    output: str = typer.Option("reports", "--output", "-o", help="Directory to save reports"),
     log_level: str = typer.Option(
         "INFO",
         "--log-level",
@@ -77,16 +74,14 @@ def analyze(
     urls = [url.strip() for url in github_urls.split(",")]
 
     # Display analysis details
-    rich_print(f"[bold]AI Project Analyzer[/bold]")
+    rich_print("[bold]AI Project Analyzer[/bold]")
     rich_print(f"Model: [cyan]{model}[/cyan] (Temperature: {temperature})")
     rich_print(f"Output format: [cyan]{'JSON' if json_output else 'Markdown'}[/cyan]")
     rich_print(f"Repositories to analyze: [cyan]{len(urls)}[/cyan]")
 
     # Fetch repository digests with progress bar
     with Progress() as progress:
-        fetch_task = progress.add_task(
-            "[green]Fetching repositories...", total=len(urls)
-        )
+        fetch_task = progress.add_task("[green]Fetching repositories...", total=len(urls))
 
         logger.info(f"Fetching {len(urls)} repositories: {', '.join(urls)}")
         repo_digests = {}
@@ -104,9 +99,7 @@ def analyze(
             progress.advance(fetch_task)
 
     if not repo_digests:
-        rich_print(
-            "[bold red]Error:[/bold red] No repositories were successfully fetched."
-        )
+        rich_print("[bold red]Error:[/bold red] No repositories were successfully fetched.")
         raise typer.Exit(code=1)
 
     # Analyze repositories
@@ -120,9 +113,7 @@ def analyze(
     )
 
     if not analyses:
-        rich_print(
-            "[bold red]Error:[/bold red] No repositories were successfully analyzed."
-        )
+        rich_print("[bold red]Error:[/bold red] No repositories were successfully analyzed.")
         raise typer.Exit(code=1)
 
     # Save reports

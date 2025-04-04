@@ -1,19 +1,18 @@
 """
 Repository analysis module for the AI Project Analyzer.
 
-This module handles analyzing repository code digests using LangChain and Gemini.
+This module handles analyzing repository code digests and GitHub metrics using LangChain and Gemini.
 """
 
 import logging
-import os
 import time
-from typing import Dict, List, Optional, Any, Union
+import re
+from typing import Dict, Optional, Any, Union
 import json
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import StrOutputParser
 from langchain.prompts import ChatPromptTemplate
-from langchain.schema.runnable import RunnablePassthrough
 
 from src.config import get_gemini_api_key
 
@@ -69,6 +68,7 @@ def create_llm_chain(
     model_name: str = DEFAULT_MODEL,
     temperature: float = DEFAULT_TEMPERATURE,
     output_json: bool = False,
+    include_metrics: bool = False,
 ) -> object:
     """
     Create a LangChain chain for analysis.
@@ -78,6 +78,7 @@ def create_llm_chain(
         model_name: Name of the model to use (defaults to DEFAULT_MODEL)
         temperature: Temperature setting for generation (defaults to DEFAULT_TEMPERATURE)
         output_json: Whether to format output as JSON
+        include_metrics: Whether to include metrics in the prompt template
 
     Returns:
         object: The LangChain chain
@@ -87,9 +88,7 @@ def create_llm_chain(
 
     # Validate model name
     if model_name not in AVAILABLE_MODELS:
-        logger.warning(
-            f"Model {model_name} not recognized, using {DEFAULT_MODEL} instead"
-        )
+        logger.warning(f"Model {model_name} not recognized, using {DEFAULT_MODEL} instead")
         model_name = DEFAULT_MODEL
 
     # Get model-specific token limit or use default
@@ -103,18 +102,35 @@ def create_llm_chain(
         max_output_tokens=max_tokens,
     )
 
+    # Create the base prompt template string
+    prompt_str = prompt_template
+
+    # Add metrics instruction if metrics will be included
+    if include_metrics:
+        metrics_instruction = """
+## GitHub Metrics
+I've included GitHub metrics for this repository that you should incorporate into your analysis:
+{metrics_data}
+
+When analyzing the repository, please consider these metrics and include them in your report under appropriate sections. 
+Include a 'Repository Metrics' section with all the stats, a 'Top Contributor Profile' section, and a 'Language Distribution' section in your report.
+Also add a 'Codebase Breakdown' section based on the strengths, weaknesses, and missing features from the codebase analysis.
+"""
+        prompt_str += metrics_instruction
+
+    # Add code digest at the end
+    base_prompt = prompt_str + "\n\n{code_digest}"
+
     # Create prompt template
-    prompt = ChatPromptTemplate.from_template(prompt_template + "\n\n{code_digest}")
+    prompt = ChatPromptTemplate.from_template(base_prompt)
 
     # Create output parser
     string_parser = StrOutputParser()
 
     if output_json:
         # Add specific instructions for JSON output to help the model
-        json_instruction = "\n\nPlease format your response as a valid JSON object containing the analysis results. Include scores for each category (readability, standards, complexity, testing) and provide an overall analysis."
-        json_prompt = ChatPromptTemplate.from_template(
-            prompt_template + json_instruction + "\n\n{code_digest}"
-        )
+        json_instruction = "\n\nPlease format your response as a valid JSON object containing the analysis results. Include scores for each category (readability, standards, complexity, testing, security) and provide an overall analysis."
+        json_prompt = ChatPromptTemplate.from_template(base_prompt + json_instruction)
 
         # Custom JSON parsing function
         def parse_json_string(text: str) -> dict:
@@ -174,7 +190,7 @@ def truncate_if_needed(text: str, max_tokens: int = MAX_TOKENS) -> str:
     max_chars = max_tokens * chars_per_token
 
     if len(text) > max_chars:
-        logger.warning(f"Code digest exceeds estimated token limit, truncating...")
+        logger.warning("Code digest exceeds estimated token limit, truncating...")
         truncated = text[:max_chars]
         return truncated + "\n\n[Content truncated due to length]"
 
@@ -187,6 +203,7 @@ def analyze_repositories(
     model_name: str = DEFAULT_MODEL,
     temperature: float = DEFAULT_TEMPERATURE,
     output_json: bool = False,
+    metrics_data: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Union[str, Dict[str, Any]]]:
     """
     Analyze multiple repositories using the LLM.
@@ -197,6 +214,7 @@ def analyze_repositories(
         model_name: Name of the Gemini model to use
         temperature: Temperature setting for generation
         output_json: Whether to format output as JSON
+        metrics_data: Optional dictionary mapping repository names to their GitHub metrics
 
     Returns:
         Dict[str, Union[str, Dict[str, Any]]]: Dictionary mapping repository names to their analysis results
@@ -209,15 +227,6 @@ def analyze_repositories(
     logger.info(f"Loading prompt from {prompt_path}")
     prompt_template = load_prompt(prompt_path)
 
-    # Create the LangChain chain
-    logger.info(f"Creating LLM chain with model {model_name}")
-    chain = create_llm_chain(
-        prompt_template,
-        model_name=model_name,
-        temperature=temperature,
-        output_json=output_json,
-    )
-
     # Process each repository
     for index, (repo_name, code_digest) in enumerate(repo_digests.items(), 1):
         logger.info(f"Analyzing repository {index}/{total_repos}: {repo_name}")
@@ -229,17 +238,39 @@ def analyze_repositories(
             estimated_remaining = avg_time_per_repo * (total_repos - index + 1)
             logger.info(f"Estimated time remaining: {estimated_remaining:.1f} seconds")
 
+        # Check if we have metrics for this repository
+        has_metrics = metrics_data and repo_name in metrics_data
+
+        # Create the LangChain chain for this repository
+        logger.info(f"Creating LLM chain with model {model_name}")
+        chain = create_llm_chain(
+            prompt_template,
+            model_name=model_name,
+            temperature=temperature,
+            output_json=output_json,
+            include_metrics=has_metrics,
+        )
+
         retry_count = 0
         while retry_count < MAX_RETRIES:
             try:
                 # Prepare the code digest (truncate if needed)
                 processed_digest = truncate_if_needed(code_digest)
 
+                # Prepare input for the chain
+                invoke_params = {"code_digest": processed_digest}
+
+                # Add metrics data if available
+                if has_metrics:
+                    # Convert metrics to a formatted string
+                    metrics_formatted = format_metrics_for_prompt(metrics_data[repo_name])
+                    invoke_params["metrics_data"] = metrics_formatted
+
                 # Run the analysis
                 logger.info(
                     f"Running LLM analysis for {repo_name} (attempt {retry_count + 1}/{MAX_RETRIES})"
                 )
-                analysis = chain.invoke({"code_digest": processed_digest})
+                analysis = chain.invoke(invoke_params)
 
                 # Store the result
                 results[repo_name] = analysis
@@ -268,19 +299,81 @@ def analyze_repositories(
     # Calculate and log statistics
     total_time = time.time() - start_time
     successful_analyses = sum(
-        1
-        for v in results.values()
-        if not isinstance(v, str) or not v.startswith("Error:")
+        1 for v in results.values() if not isinstance(v, str) or not v.startswith("Error:")
     )
 
-    logger.info(
-        f"Analyzed {successful_analyses}/{total_repos} repositories successfully"
-    )
+    logger.info(f"Analyzed {successful_analyses}/{total_repos} repositories successfully")
     logger.info(f"Total analysis time: {total_time:.2f} seconds")
 
     if successful_analyses < total_repos:
-        logger.warning(
-            f"Failed to analyze {total_repos - successful_analyses} repositories"
-        )
+        logger.warning(f"Failed to analyze {total_repos - successful_analyses} repositories")
 
     return results
+
+
+def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
+    """
+    Format metrics data for inclusion in the prompt.
+
+    Args:
+        metrics: Repository metrics data
+
+    Returns:
+        str: Formatted metrics string
+    """
+    formatted = []
+
+    # Repository metrics
+    if "repository_metrics" in metrics:
+        formatted.append("### Repository Metrics")
+        for key, value in metrics["repository_metrics"].items():
+            formatted.append(f"- {key.replace('_', ' ').title()}: {value}")
+
+    # Repository links
+    if "repository_links" in metrics:
+        formatted.append("\n### Repository Links")
+        for key, value in metrics["repository_links"].items():
+            formatted.append(f"- {key.replace('_', ' ').title()}: {value}")
+
+    # Top contributor
+    if "top_contributor" in metrics and metrics["top_contributor"]:
+        formatted.append("\n### Top Contributor")
+        for key, value in metrics["top_contributor"].items():
+            formatted.append(f"- {key.title()}: {value}")
+
+    # PR status
+    if "pr_status" in metrics:
+        formatted.append("\n### Pull Request Status")
+        for key, value in metrics["pr_status"].items():
+            formatted.append(f"- {key.replace('_', ' ').title()}: {value}")
+
+    # Language distribution
+    if "language_distribution" in metrics and metrics["language_distribution"]:
+        formatted.append("\n### Language Distribution")
+        for lang, percentage in metrics["language_distribution"].items():
+            formatted.append(f"- {lang}: {percentage}%")
+
+    # Codebase analysis
+    if "codebase_analysis" in metrics:
+        analysis = metrics["codebase_analysis"]
+
+        if "strengths" in analysis and analysis["strengths"]:
+            formatted.append("\n### Codebase Strengths")
+            for item in analysis["strengths"]:
+                formatted.append(f"- {item}")
+
+        if "weaknesses" in analysis and analysis["weaknesses"]:
+            formatted.append("\n### Codebase Weaknesses")
+            for item in analysis["weaknesses"]:
+                formatted.append(f"- {item}")
+
+        if "missing_features" in analysis and analysis["missing_features"]:
+            formatted.append("\n### Missing or Buggy Features")
+            for item in analysis["missing_features"]:
+                formatted.append(f"- {item}")
+
+        if "summary" in analysis and analysis["summary"]:
+            formatted.append("\n### Codebase Summary")
+            formatted.append(analysis["summary"])
+
+    return "\n".join(formatted)
