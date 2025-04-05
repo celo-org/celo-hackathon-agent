@@ -123,7 +123,7 @@ def save_report(repo_name: str, analysis, output_dir: str) -> str:
     return report_path
 
 
-def extract_scores_from_markdown(markdown_content: str) -> Dict[str, int]:
+def extract_scores_from_markdown(markdown_content: str) -> Dict[str, float]:
     """
     Extract scores from markdown analysis content.
 
@@ -131,19 +131,24 @@ def extract_scores_from_markdown(markdown_content: str) -> Dict[str, int]:
         markdown_content: Markdown-formatted analysis text
 
     Returns:
-        Dict[str, int]: Dictionary of extracted scores
+        Dict[str, float]: Dictionary of extracted scores (0-10 scale with decimals)
     """
     scores = {}
 
     # First try to extract from the score table (preferred method)
-    table_pattern = r"\|\s*([^|]+)\s*\|\s*(\d+)\s*\|"
+    # Pattern looks for a number that can be an integer or decimal (e.g., 8 or 8.5)
+    table_pattern = r"\|\s*([^|]+)\s*\|\s*(\d+(?:\.\d+)?)\s*\|"
     table_matches = re.findall(table_pattern, markdown_content)
 
     if table_matches:
         for criterion, score_str in table_matches:
             criterion = criterion.strip().lower()
             try:
-                score = int(score_str.strip())
+                score = float(score_str.strip())
+
+                # If the score is on a 0-100 scale, convert to 0-10
+                if score > 10:
+                    score = round(score / 10, 1)
 
                 # Map various criteria names to standardized keys
                 if "security" in criterion:
@@ -163,14 +168,14 @@ def extract_scores_from_markdown(markdown_content: str) -> Dict[str, int]:
 
     # If we couldn't find scores in a table, try individual patterns as fallback
     if not scores or len(scores) < 5:
-        # Define patterns to look for
+        # Define patterns to look for (allowing for decimal scores)
         patterns = {
-            "security": r"Security:?\s+(?:score)?\s*[:-]?\s*(\d+)",
-            "functionality": r"Functionality\s*(?:&|and)\s*Correctness:?\s+(?:score)?\s*[:-]?\s*(\d+)",
-            "readability": r"Readability:?\s+(?:score)?\s*[:-]?\s*(\d+)|Readability\s*(?:&|and)\s*Understandability:?\s+(?:score)?\s*[:-]?\s*(\d+)",
-            "dependencies": r"Dependencies\s*(?:&|and)\s*Setup:?\s+(?:score)?\s*[:-]?\s*(\d+)",
-            "evidence": r"Evidence\s+of\s+(?:Technical|Celo)\s+Usage:?\s+(?:score)?\s*[:-]?\s*(\d+)",
-            "overall": r"Overall\s*(?:Score)?:?\s+(?:score)?\s*[:-]?\s*(\d+)",
+            "security": r"Security:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
+            "functionality": r"Functionality\s*(?:&|and)\s*Correctness:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
+            "readability": r"Readability:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)|Readability\s*(?:&|and)\s*Understandability:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
+            "dependencies": r"Dependencies\s*(?:&|and)\s*Setup:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
+            "evidence": r"Evidence\s+of\s+(?:Technical|Celo)\s+Usage:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
+            "overall": r"Overall\s*(?:Score)?:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
         }
 
         # Extract scores using regex
@@ -182,7 +187,11 @@ def extract_scores_from_markdown(markdown_content: str) -> Dict[str, int]:
                     capture_groups = match.groups()
                     score_str = next((g for g in capture_groups if g is not None), None)
                     if score_str:
-                        scores[score_name] = int(score_str)
+                        score = float(score_str)
+                        # If the score is on a 0-100 scale, convert to 0-10
+                        if score > 10:
+                            score = round(score / 10, 1)
+                        scores[score_name] = score
                 except (ValueError, IndexError):
                     logger.warning(f"Could not extract {score_name} score")
 
@@ -190,7 +199,7 @@ def extract_scores_from_markdown(markdown_content: str) -> Dict[str, int]:
     if "overall" not in scores and len(scores) >= 3:
         other_scores = [s for k, s in scores.items() if k != "overall"]
         if other_scores:
-            scores["overall"] = round(sum(other_scores) / len(other_scores))
+            scores["overall"] = round(sum(other_scores) / len(other_scores), 1)
 
     return scores
 
@@ -248,17 +257,19 @@ def update_summary_report(
     progress_percentage = (repos_completed / total_repos) * 100 if total_repos > 0 else 0
     bar_length = 30
     filled_length = int(bar_length * repos_completed // total_repos)
-    progress_bar = '█' * filled_length + '░' * (bar_length - filled_length)
-    
+    progress_bar = "█" * filled_length + "░" * (bar_length - filled_length)
+
     summary_content += f"## Progress: {repos_completed}/{total_repos} Repositories Analyzed ({progress_percentage:.1f}%)\n"
     summary_content += f"```\n[{progress_bar}]\n```\n\n"
-    
+
     # Add status with timestamps
     summary_content += f"- Analysis started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     if repos_completed == total_repos:
         summary_content += f"- Analysis completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     else:
-        summary_content += f"- Analysis in progress: {repos_completed} of {total_repos} repositories analyzed\n"
+        summary_content += (
+            f"- Analysis in progress: {repos_completed} of {total_repos} repositories analyzed\n"
+        )
     summary_content += "\n"
 
     # Add score table
@@ -267,12 +278,29 @@ def update_summary_report(
     summary_content += "|------------|----------|--------------|-------------|--------------|----------|----------|\n"
 
     for repo_name, scores in all_scores.items():
-        security = scores.get("security", "N/A")
-        functionality = scores.get("functionality", "N/A")
-        readability = scores.get("readability", "N/A")
-        dependencies = scores.get("dependencies", "N/A")
-        evidence = scores.get("evidence", "N/A")
-        overall = scores.get("overall", "N/A")
+        # Format scores to show on 0-10 scale with one decimal place
+        security = (
+            f"{scores.get('security', 'N/A')}/10" if scores.get("security") != "N/A" else "N/A"
+        )
+        functionality = (
+            f"{scores.get('functionality', 'N/A')}/10"
+            if scores.get("functionality") != "N/A"
+            else "N/A"
+        )
+        readability = (
+            f"{scores.get('readability', 'N/A')}/10"
+            if scores.get("readability") != "N/A"
+            else "N/A"
+        )
+        dependencies = (
+            f"{scores.get('dependencies', 'N/A')}/10"
+            if scores.get("dependencies") != "N/A"
+            else "N/A"
+        )
+        evidence = (
+            f"{scores.get('evidence', 'N/A')}/10" if scores.get("evidence") != "N/A" else "N/A"
+        )
+        overall = f"{scores.get('overall', 'N/A')}/10" if scores.get("overall") != "N/A" else "N/A"
 
         summary_content += f"| {repo_name} | {security} | {functionality} | {readability} | {dependencies} | {evidence} | {overall} |\n"
 
@@ -292,12 +320,12 @@ def update_summary_report(
             scores = [
                 repo_scores.get(category, 0)
                 for repo_scores in all_scores.values()
-                if isinstance(repo_scores.get(category, 0), int)
+                if isinstance(repo_scores.get(category, 0), (int, float))
             ]
 
             if scores:
                 avg_score = sum(scores) / len(scores)
-                summary_content += f"- **{category.title()}**: {avg_score:.1f}\n"
+                summary_content += f"- **{category.title()}**: {avg_score:.1f}/10\n"
 
     # List completed reports
     summary_content += "\n## Individual Reports\n\n"

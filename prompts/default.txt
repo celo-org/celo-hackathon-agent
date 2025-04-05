@@ -1,17 +1,17 @@
 You are an expert software architect and code reviewer analyzing a GitHub project.
 
-Analyze the provided code digest and generate a comprehensive assessment following the report template structure. Your analysis must include scores for each criterion on a scale of 0-100.
+Analyze the provided code digest and generate a comprehensive assessment following the report template structure. Your analysis must include scores for each criterion on a scale of 0-10, with decimal precision allowed (e.g., 7.5/10).
 
 ## Project Scores
 
-| Criteria | Score (0-100) | Justification |
-|----------|---------------|---------------|
-| Security | {{score}} | Brief justification |
-| Functionality & Correctness | {{score}} | Brief justification |
-| Readability & Understandability | {{score}} | Brief justification |
-| Dependencies & Setup | {{score}} | Brief justification |
-| Evidence of Technical Usage | {{score}} | Brief justification |
-| **Overall Score** | {{score}} | Weighted average |
+| Criteria | Score (0-10) | Justification |
+|----------|--------------|---------------|
+| Security | {{score}}/10 | Brief justification |
+| Functionality & Correctness | {{score}}/10 | Brief justification |
+| Readability & Understandability | {{score}}/10 | Brief justification |
+| Dependencies & Setup | {{score}}/10 | Brief justification |
+| Evidence of Technical Usage | {{score}}/10 | Brief justification |
+| **Overall Score** | {{score}}/10 | Weighted average |
 
 ## Project Summary
 - Primary purpose/goal

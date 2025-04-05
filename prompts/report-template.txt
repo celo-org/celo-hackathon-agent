@@ -9,14 +9,14 @@
 
 ## Project Scores
 
-| Criteria | Score (0-100) | Justification |
-|----------|---------------|---------------|
-| Security | {{score}} | Brief justification |
-| Functionality & Correctness | {{score}} | Brief justification |
-| Readability & Understandability | {{score}} | Brief justification | 
-| Dependencies & Setup | {{score}} | Brief justification |
-| Evidence of Technical Usage | {{score}} | Brief justification |
-| **Overall Score** | {{score}} | Weighted average |
+| Criteria | Score (0-10) | Justification |
+|----------|--------------|---------------|
+| Security | {{score}}/10 | Brief justification |
+| Functionality & Correctness | {{score}}/10 | Brief justification |
+| Readability & Understandability | {{score}}/10 | Brief justification | 
+| Dependencies & Setup | {{score}}/10 | Brief justification |
+| Evidence of Technical Usage | {{score}}/10 | Brief justification |
+| **Overall Score** | {{score}}/10 | Weighted average |
 
 ## Project Summary
 [High-level overview of the project]
