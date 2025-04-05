@@ -195,13 +195,20 @@ def extract_scores_from_markdown(markdown_content: str) -> Dict[str, int]:
     return scores
 
 
-def create_summary_report(analyses: Dict[str, Union[str, Dict[str, Any]]], output_dir: str) -> str:
+def update_summary_report(
+    analyses: Dict[str, Union[str, Dict[str, Any]]],
+    output_dir: str,
+    total_repos: int,
+    repos_completed: int,
+) -> str:
     """
-    Create a summary report of all analyzed repositories.
+    Create or update a summary report of analyzed repositories, showing progress.
 
     Args:
         analyses: Dictionary mapping repository names to their analysis results
         output_dir: Directory to save the summary report
+        total_repos: Total number of repositories to be analyzed
+        repos_completed: Number of repositories that have been completed
 
     Returns:
         str: Path to the summary report file
@@ -236,7 +243,23 @@ def create_summary_report(analyses: Dict[str, Union[str, Dict[str, Any]]], outpu
     # Generate markdown summary
     summary_content = "# Analysis Summary Report\n\n"
     summary_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    summary_content += f"## Repositories Analyzed: {len(analyses)}\n\n"
+
+    # Show progress information with visual progress bar
+    progress_percentage = (repos_completed / total_repos) * 100 if total_repos > 0 else 0
+    bar_length = 30
+    filled_length = int(bar_length * repos_completed // total_repos)
+    progress_bar = '█' * filled_length + '░' * (bar_length - filled_length)
+    
+    summary_content += f"## Progress: {repos_completed}/{total_repos} Repositories Analyzed ({progress_percentage:.1f}%)\n"
+    summary_content += f"```\n[{progress_bar}]\n```\n\n"
+    
+    # Add status with timestamps
+    summary_content += f"- Analysis started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    if repos_completed == total_repos:
+        summary_content += f"- Analysis completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    else:
+        summary_content += f"- Analysis in progress: {repos_completed} of {total_repos} repositories analyzed\n"
+    summary_content += "\n"
 
     # Add score table
     summary_content += "## Score Summary\n\n"
@@ -276,17 +299,90 @@ def create_summary_report(analyses: Dict[str, Union[str, Dict[str, Any]]], outpu
                 avg_score = sum(scores) / len(scores)
                 summary_content += f"- **{category.title()}**: {avg_score:.1f}\n"
 
-    # List all reports
+    # List completed reports
     summary_content += "\n## Individual Reports\n\n"
     for repo_name in analyses.keys():
-        summary_content += f"- [{repo_name}](./)\n"
+        safe_name = repo_name.replace("/", "-")
+        report_name = f"{safe_name}-analysis.md"
+        summary_content += f"- [{repo_name}](./{report_name})\n"
+
+    # Add pending repositories if not all are completed
+    if repos_completed < total_repos:
+        summary_content += "\n## Pending Repositories\n\n"
+        summary_content += (
+            f"There are {total_repos - repos_completed} repositories pending analysis.\n"
+        )
 
     # Save summary
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write(summary_content)
 
-    logger.info(f"Saved summary report to {summary_path}")
+    logger.info(f"Updated summary report at {summary_path}")
     return summary_path
+
+
+def create_summary_report(analyses: Dict[str, Union[str, Dict[str, Any]]], output_dir: str) -> str:
+    """
+    Create a summary report of all analyzed repositories.
+
+    Args:
+        analyses: Dictionary mapping repository names to their analysis results
+        output_dir: Directory to save the summary report
+
+    Returns:
+        str: Path to the summary report file
+    """
+    # Call the updated function with completed = total
+    return update_summary_report(analyses, output_dir, len(analyses), len(analyses))
+
+
+def save_single_report(
+    repo_name: str,
+    analysis: Union[str, Dict[str, Any]],
+    report_dir: str,
+    total_repos: int,
+    completed_repos: int,
+    current_analyses: Dict[str, Union[str, Dict[str, Any]]] = None,
+) -> Dict[str, str]:
+    """
+    Save a single repository analysis report and update the summary.
+
+    Args:
+        repo_name: Name of the repository
+        analysis: Analysis result for the repository
+        report_dir: Directory to save the report
+        total_repos: Total number of repositories to be analyzed
+        completed_repos: Number of repositories completed including this one
+        current_analyses: Current collection of analyses to include in summary
+
+    Returns:
+        Dict[str, str]: Dictionary mapping repository names to their report file paths
+    """
+    results = {}
+
+    # Save the individual report
+    try:
+        report_path = save_report(repo_name, analysis, report_dir)
+        results[repo_name] = report_path
+
+        # Update the analyses dict for the summary
+        if current_analyses is None:
+            current_analyses = {}
+        current_analyses[repo_name] = analysis
+
+        # Update the summary report
+        try:
+            summary_path = update_summary_report(
+                current_analyses, report_dir, total_repos, completed_repos
+            )
+            results["__summary__"] = summary_path
+        except Exception as e:
+            logger.error(f"Error updating summary report: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"Error saving report for {repo_name}: {str(e)}")
+
+    return results
 
 
 def save_reports(

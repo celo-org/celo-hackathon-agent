@@ -101,6 +101,71 @@ def get_repo_name(url: str) -> str:
     return url.replace("https://", "").replace("http://", "").replace("/", "_")
 
 
+def fetch_single_repository(
+    repo_url: str, include_metrics: bool = True, github_token: Optional[str] = None
+) -> tuple[str, Dict[str, Any]]:
+    """
+    Fetch a single repository and return its code digest and metrics.
+
+    Args:
+        repo_url: Repository URL to fetch
+        include_metrics: Whether to include GitHub metrics (default: True)
+        github_token: GitHub API token for fetching metrics (optional)
+
+    Returns:
+        tuple[str, Dict[str, Any]]: Repository name and dictionary with content and metrics
+    """
+    exclude_patterns_set = set(EXCLUDE_PATTERNS)
+    normalized_url = normalize_repo_url(repo_url)
+    repo_name = get_repo_name(normalized_url)
+    result = {"content": "", "metrics": {}}
+
+    logger.info(f"Fetching repository content: {repo_name} ({normalized_url})")
+
+    try:
+        # Use gitingest to fetch the repository content
+        summary, tree, content = ingest(normalized_url, exclude_patterns=exclude_patterns_set)
+
+        # Log summary information
+        logger.info(f"Successfully fetched {repo_name} content")
+        logger.debug(f"Repository summary: {len(content)} characters")
+
+        # Store the content in our results dictionary
+        result["content"] = content
+
+    except Exception as e:
+        logger.error(f"Error fetching repository {repo_name} content: {str(e)}")
+        # Include the error in content
+        result["content"] = f"Error fetching repository: {str(e)}"
+
+    # Fetch GitHub metrics if requested
+    if include_metrics:
+        logger.info(f"Fetching GitHub metrics for repository: {repo_name}")
+        try:
+            metrics_data = fetch_github_metrics([normalized_url], github_token)
+
+            # Add metrics to result
+            if repo_name in metrics_data:
+                result["metrics"] = metrics_data[repo_name]
+                logger.info(f"Added metrics for {repo_name}")
+            else:
+                # Look for potential repo name mismatches
+                for metrics_repo_name, metrics in metrics_data.items():
+                    if (
+                        repo_name.lower() in metrics_repo_name.lower()
+                        or metrics_repo_name.lower() in repo_name.lower()
+                    ):
+                        result["metrics"] = metrics
+                        logger.info(
+                            f"Added metrics for {repo_name} (matched from {metrics_repo_name})"
+                        )
+                        break
+        except Exception as e:
+            logger.error(f"Error fetching metrics for {repo_name}: {str(e)}")
+
+    return repo_name, result
+
+
 def fetch_repositories(
     repo_urls: List[str], include_metrics: bool = True, github_token: Optional[str] = None
 ) -> Dict[str, Dict[str, Any]]:
@@ -116,57 +181,11 @@ def fetch_repositories(
         Dict[str, Dict[str, Any]]: Dictionary mapping repository names to their data
     """
     results = {}
-    exclude_patterns_set = set(EXCLUDE_PATTERNS)
-    normalized_urls = [normalize_repo_url(url) for url in repo_urls]
 
-    # Fetch code content
-    for url in normalized_urls:
-        repo_name = get_repo_name(url)
-
-        logger.info(f"Fetching repository content: {repo_name} ({url})")
-
-        try:
-            # Use gitingest to fetch the repository content
-            summary, tree, content = ingest(url, exclude_patterns=exclude_patterns_set)
-
-            # Log summary information
-            logger.info(f"Successfully fetched {repo_name} content")
-            logger.debug(f"Repository summary: {len(content)} characters")
-
-            # Store the content in our results dictionary
-            results[repo_name] = {"content": content, "metrics": {}}
-
-        except Exception as e:
-            logger.error(f"Error fetching repository {repo_name} content: {str(e)}")
-            # Create an entry even if content fetch fails
-            results[repo_name] = {"content": f"Error fetching repository: {str(e)}", "metrics": {}}
-
-    # Fetch GitHub metrics if requested
-    if include_metrics:
-        logger.info("Fetching GitHub metrics for repositories...")
-        try:
-            metrics_data = fetch_github_metrics(normalized_urls, github_token)
-
-            # Add metrics to results
-            for repo_name, metrics in metrics_data.items():
-                if repo_name in results:
-                    results[repo_name]["metrics"] = metrics
-                    logger.info(f"Added metrics for {repo_name}")
-                else:
-                    # This should rarely happen, but handle the case where a repo name mismatch occurs
-                    # Find the most likely match
-                    for result_name in results.keys():
-                        if (
-                            repo_name.lower() in result_name.lower()
-                            or result_name.lower() in repo_name.lower()
-                        ):
-                            results[result_name]["metrics"] = metrics
-                            logger.info(
-                                f"Added metrics for {result_name} (matched from {repo_name})"
-                            )
-                            break
-        except Exception as e:
-            logger.error(f"Error fetching metrics: {str(e)}")
+    # Process each repository individually
+    for url in repo_urls:
+        repo_name, repo_data = fetch_single_repository(url, include_metrics, github_token)
+        results[repo_name] = repo_data
 
     logger.info(f"Fetched data for {len(results)} repositories successfully")
     return results

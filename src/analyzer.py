@@ -197,6 +197,97 @@ def truncate_if_needed(text: str, max_tokens: int = MAX_TOKENS) -> str:
     return text
 
 
+def analyze_single_repository(
+    repo_name: str,
+    code_digest: str,
+    prompt_path: str,
+    model_name: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
+    output_json: bool = False,
+    metrics_data: Optional[Dict[str, Any]] = None,
+) -> Union[str, Dict[str, Any]]:
+    """
+    Analyze a single repository using the LLM.
+
+    Args:
+        repo_name: Name of the repository
+        code_digest: Repository code digest
+        prompt_path: Path to the prompt file
+        model_name: Name of the Gemini model to use
+        temperature: Temperature setting for generation
+        output_json: Whether to format output as JSON
+        metrics_data: Optional dictionary containing GitHub metrics for this repository
+
+    Returns:
+        Union[str, Dict[str, Any]]: Analysis result (string or JSON object)
+    """
+    start_time = time.time()
+
+    # Load the prompt template
+    prompt_template = load_prompt(prompt_path)
+
+    # Check if we have metrics for this repository
+    has_metrics = metrics_data is not None and len(metrics_data) > 0
+
+    # Create the LangChain chain for this repository
+    logger.info(f"Creating LLM chain with model {model_name}")
+    chain = create_llm_chain(
+        prompt_template,
+        model_name=model_name,
+        temperature=temperature,
+        output_json=output_json,
+        include_metrics=has_metrics,
+    )
+
+    retry_count = 0
+    while retry_count < MAX_RETRIES:
+        try:
+            # Prepare the code digest (truncate if needed)
+            processed_digest = truncate_if_needed(code_digest)
+
+            # Prepare input for the chain
+            invoke_params = {"code_digest": processed_digest}
+
+            # Add metrics data if available
+            if has_metrics:
+                # Convert metrics to a formatted string
+                metrics_formatted = format_metrics_for_prompt(metrics_data)
+                invoke_params["metrics_data"] = metrics_formatted
+
+            # Run the analysis
+            logger.info(
+                f"Running LLM analysis for {repo_name} (attempt {retry_count + 1}/{MAX_RETRIES})"
+            )
+            analysis = chain.invoke(invoke_params)
+
+            # Calculate time taken
+            elapsed_time = time.time() - start_time
+            logger.info(f"Analysis complete for {repo_name} in {elapsed_time:.2f} seconds")
+
+            return analysis
+
+        except KeyboardInterrupt:
+            logger.warning("Analysis interrupted by user")
+            raise
+
+        except Exception as e:
+            retry_count += 1
+            logger.error(
+                f"Error analyzing repository {repo_name} (attempt {retry_count}/{MAX_RETRIES}): {str(e)}"
+            )
+
+            if retry_count < MAX_RETRIES:
+                logger.info(f"Retrying in {RETRY_DELAY} seconds...")
+                time.sleep(RETRY_DELAY)
+            else:
+                logger.error(f"All retry attempts failed for {repo_name}")
+                # Return error message
+                return f"Error: {str(e)}"
+
+    # Should never reach here, but just in case
+    return f"Error: Unknown error analyzing {repo_name}"
+
+
 def analyze_repositories(
     repo_digests: Dict[str, str],
     prompt_path: str,
@@ -225,7 +316,6 @@ def analyze_repositories(
 
     # Load the prompt template
     logger.info(f"Loading prompt from {prompt_path}")
-    prompt_template = load_prompt(prompt_path)
 
     # Process each repository
     for index, (repo_name, code_digest) in enumerate(repo_digests.items(), 1):
@@ -238,63 +328,16 @@ def analyze_repositories(
             estimated_remaining = avg_time_per_repo * (total_repos - index + 1)
             logger.info(f"Estimated time remaining: {estimated_remaining:.1f} seconds")
 
-        # Check if we have metrics for this repository
-        has_metrics = metrics_data and repo_name in metrics_data
+        # Extract metrics for this repository if available
+        repo_metrics = metrics_data.get(repo_name, {}) if metrics_data else {}
 
-        # Create the LangChain chain for this repository
-        logger.info(f"Creating LLM chain with model {model_name}")
-        chain = create_llm_chain(
-            prompt_template,
-            model_name=model_name,
-            temperature=temperature,
-            output_json=output_json,
-            include_metrics=has_metrics,
+        # Analyze this repository
+        analysis = analyze_single_repository(
+            repo_name, code_digest, prompt_path, model_name, temperature, output_json, repo_metrics
         )
 
-        retry_count = 0
-        while retry_count < MAX_RETRIES:
-            try:
-                # Prepare the code digest (truncate if needed)
-                processed_digest = truncate_if_needed(code_digest)
-
-                # Prepare input for the chain
-                invoke_params = {"code_digest": processed_digest}
-
-                # Add metrics data if available
-                if has_metrics:
-                    # Convert metrics to a formatted string
-                    metrics_formatted = format_metrics_for_prompt(metrics_data[repo_name])
-                    invoke_params["metrics_data"] = metrics_formatted
-
-                # Run the analysis
-                logger.info(
-                    f"Running LLM analysis for {repo_name} (attempt {retry_count + 1}/{MAX_RETRIES})"
-                )
-                analysis = chain.invoke(invoke_params)
-
-                # Store the result
-                results[repo_name] = analysis
-
-                logger.info(f"Analysis complete for {repo_name}")
-                break  # Success, exit retry loop
-
-            except KeyboardInterrupt:
-                logger.warning("Analysis interrupted by user")
-                raise
-
-            except Exception as e:
-                retry_count += 1
-                logger.error(
-                    f"Error analyzing repository {repo_name} (attempt {retry_count}/{MAX_RETRIES}): {str(e)}"
-                )
-
-                if retry_count < MAX_RETRIES:
-                    logger.info(f"Retrying in {RETRY_DELAY} seconds...")
-                    time.sleep(RETRY_DELAY)
-                else:
-                    logger.error(f"All retry attempts failed for {repo_name}")
-                    # Store error message in results
-                    results[repo_name] = f"Error: {str(e)}"
+        # Store the result
+        results[repo_name] = analysis
 
     # Calculate and log statistics
     total_time = time.time() - start_time
@@ -393,9 +436,9 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
                     has_celo_context = readme_addresses.get("celo_context", False)
 
                     if has_celo_context:
-                        formatted.append(f"- **README.md Contains Celo Contract Addresses:**")
+                        formatted.append("- **README.md Contains Celo Contract Addresses:**")
                     else:
-                        formatted.append(f"- **README.md Contains Contract Addresses:**")
+                        formatted.append("- **README.md Contains Contract Addresses:**")
 
                     addresses = readme_addresses.get("addresses", [])
                     for addr in addresses[:5]:  # Show more addresses from README
