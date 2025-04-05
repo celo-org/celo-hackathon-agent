@@ -353,6 +353,73 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
         for lang, percentage in metrics["language_distribution"].items():
             formatted.append(f"- {lang}: {percentage}%")
 
+    # Celo evidence
+    if "celo_evidence" in metrics and metrics["celo_evidence"]:
+        evidence = metrics["celo_evidence"]
+
+        if evidence.get("summary"):
+            formatted.append("\n### Celo Integration Evidence")
+            formatted.append(evidence["summary"])
+
+            # Celo references
+            if evidence.get("celo_references"):
+                formatted.append("\n#### Files with Celo References:")
+                for file_path in evidence["celo_references"][:10]:  # Limit to 10 files
+                    formatted.append(f"- `{file_path}`")
+
+            # Alfajores references
+            if evidence.get("alfajores_references"):
+                formatted.append("\n#### Files with Alfajores References:")
+                for file_path in evidence["alfajores_references"][:10]:  # Limit to 10 files
+                    formatted.append(f"- `{file_path}`")
+
+            # Contract addresses
+            if evidence.get("contract_addresses"):
+                formatted.append("\n#### Contract Addresses Found:")
+
+                # Prioritize README addresses by showing them first
+                readme_addresses = None
+                other_addresses = []
+
+                for item in evidence["contract_addresses"][:5]:  # Limit to 5 files
+                    if item["file"].lower() == "readme.md":
+                        readme_addresses = item
+                    else:
+                        other_addresses.append(item)
+
+                # Show README addresses first with prominence
+                if readme_addresses:
+                    # Check if addresses were found in a Celo context
+                    has_celo_context = readme_addresses.get("celo_context", False)
+
+                    if has_celo_context:
+                        formatted.append(f"- **README.md Contains Celo Contract Addresses:**")
+                    else:
+                        formatted.append(f"- **README.md Contains Contract Addresses:**")
+
+                    addresses = readme_addresses.get("addresses", [])
+                    for addr in addresses[:5]:  # Show more addresses from README
+                        formatted.append(f"  - `{addr}`")
+
+                # Then show other addresses
+                for item in other_addresses[:4]:  # Limit to 4 other files
+                    has_celo_context = item.get("celo_context", False)
+
+                    if has_celo_context:
+                        formatted.append(f"- File: `{item['file']}` (Celo context detected)")
+                    else:
+                        formatted.append(f"- File: `{item['file']}`")
+
+                    addresses = item.get("addresses", [])
+                    for addr in addresses[:3]:  # Limit to 3 addresses per file
+                        formatted.append(f"  - `{addr}`")
+
+            # Celo packages
+            if evidence.get("celo_packages"):
+                formatted.append("\n#### Celo Packages:")
+                for package in evidence["celo_packages"]:
+                    formatted.append(f"- `{package}`")
+
     # Codebase analysis
     if "codebase_analysis" in metrics:
         analysis = metrics["codebase_analysis"]
@@ -376,4 +443,5 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
             formatted.append("\n### Codebase Summary")
             formatted.append(analysis["summary"])
 
+    return "\n".join(formatted)
     return "\n".join(formatted)

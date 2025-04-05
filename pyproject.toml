@@ -21,6 +21,8 @@ dependencies = [
     "rich",
     "loguru",
     "PyGithub",
+    "pandas",
+    "openpyxl",
 ]
 
 [project.scripts]

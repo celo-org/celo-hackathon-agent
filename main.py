@@ -6,6 +6,7 @@ AI Project Analyzer - Analyze GitHub projects using LLMs
 import sys
 import argparse
 import logging
+import os
 
 from src.config import (
     setup_logging,
@@ -16,17 +17,26 @@ from src.config import (
 from src.fetcher import fetch_repositories
 from src.analyzer import analyze_repositories, AVAILABLE_MODELS
 from src.reporter import save_reports
+from src.file_parser import parse_input_file
 
 
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Analyze GitHub repositories using LLMs")
 
-    parser.add_argument(
+    # Create a group for input sources to handle mutual exclusivity
+    input_group = parser.add_mutually_exclusive_group(required=True)
+
+    input_group.add_argument(
         "--github-urls",
         type=str,
-        required=True,
         help="Comma-separated list of GitHub repository URLs",
+    )
+
+    input_group.add_argument(
+        "--input-file",
+        type=str,
+        help="Path to Excel (.xlsx) or CSV file containing GitHub repository URLs",
     )
 
     parser.add_argument(
@@ -92,8 +102,22 @@ def main():
     # Setup logging
     setup_logging(args.log_level)
 
-    # Parse GitHub URLs
-    github_urls = [url.strip() for url in args.github_urls.split(",")]
+    # Parse GitHub URLs from args or input file
+    github_urls = []
+
+    if args.github_urls:
+        # Parse comma-separated list
+        github_urls = [url.strip() for url in args.github_urls.split(",")]
+        logging.info(f"Found {len(github_urls)} GitHub URLs from command line arguments")
+    elif args.input_file:
+        # Parse from file
+        logging.info(f"Parsing GitHub URLs from file: {args.input_file}")
+        try:
+            github_urls = parse_input_file(args.input_file)
+            logging.info(f"Found {len(github_urls)} GitHub URLs from input file")
+        except Exception as e:
+            logging.error(f"Failed to parse input file: {str(e)}")
+            return 1
 
     # Log start of analysis with selected model
     logging.info(f"Starting analysis with model: {args.model}, temperature: {args.temperature}")

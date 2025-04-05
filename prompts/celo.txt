@@ -63,11 +63,16 @@ Look for specific evidence of Celo integration, such as:
    - Use of @celo packages (contractkit, wallet-base, etc.)
    - Celo provider configuration
    - Connection to Celo networks (Mainnet, Alfajores, Baklava)
+   - References to Celo keywords like "celo" or "alfajores" in code and documentation
+   - Include exact file paths where Celo references are found
 
 2. **Celo Smart Contracts**
    - Interaction with Celo core contracts
    - Use of Celo tokens (CELO, cUSD, cEUR, cREAL)
    - Implementation of Celo-specific standards
+   - **Contract Addresses**: Pay special attention to contract addresses in the README.md file, as these are likely deployed on Celo networks
+   - Format: Look for Ethereum-style addresses (0x...) mentioned alongside words like "contract", "deploy", "address", "celo", or "alfajores"
+   - Include exact file paths where contract addresses are found, with priority to README.md
 
 3. **Celo Features**
    - Identity attestations
@@ -75,18 +80,26 @@ Look for specific evidence of Celo integration, such as:
    - Stable token mechanisms
    - Validator operations
    - Governance participation
+   - Any references to Celo-specific RPC endpoints
 
 4. **Celo DeFi Elements**
    - Integration with Mento (Celo's stability mechanism)
    - Use of Celo Reserve
    - Interaction with Celo DeFi protocols (Ubeswap, Moola, etc.)
+   - References to Celo DeFi protocol addresses or endpoints
 
 5. **Mobile-First Approach**
    - Lightweight client implementations
    - Mobile wallet integration
    - Optimization for mobile users
+   - Celo wallet connection methods
 
-Score this section based on the depth and quality of Celo integration. Projects with superficial Celo usage should score lower than those with deep integration.
+For any evidence found, include the specific file paths where they appear. For example:
+- Celo ContractKit usage found in `/src/utils/celo.js`
+- Contract deployment on Alfajores found in `/contracts/deployments.json`
+- Celo address validation in `/src/components/AddressInput.tsx`
+
+Score this section based on the depth and quality of Celo integration. Projects with superficial Celo usage should score lower than those with deep integration. The score should reflect both the breadth of Celo features used and the depth of their integration.
 
 ## Suggestions & Next Steps
 - 3-5 specific, actionable suggestions for improvement

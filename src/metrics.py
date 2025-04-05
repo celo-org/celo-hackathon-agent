@@ -8,6 +8,7 @@ programming languages, and other statistics using parallel processing.
 import logging
 import os
 import re
+import json
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import concurrent.futures
@@ -162,13 +163,14 @@ class GithubMetricsFetcher:
         }
 
         # Fetch remaining metrics in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
             # Submit tasks for metrics that require additional API calls
             contributors_future = executor.submit(self._count_contributors, repo)
             languages_future = executor.submit(self._get_language_distribution, repo)
             top_contributor_future = executor.submit(self._get_top_contributor, repo)
             pr_metrics_future = executor.submit(self._get_pull_request_metrics, repo)
             codebase_analysis_future = executor.submit(self.analyze_codebase, repo)
+            celo_evidence_future = executor.submit(detect_celo_evidence, repo)
 
             # Wait for all futures to complete and collect results
             metrics["repository_metrics"]["total_contributors"] = contributors_future.result()
@@ -176,6 +178,7 @@ class GithubMetricsFetcher:
             metrics["top_contributor"] = top_contributor_future.result()
             metrics["pr_status"] = pr_metrics_future.result()
             metrics["codebase_analysis"] = codebase_analysis_future.result()
+            metrics["celo_evidence"] = celo_evidence_future.result()
 
         return metrics
 
@@ -358,7 +361,6 @@ class GithubMetricsFetcher:
             has_readme = False
             # Get wiki info but don't store it as variable
             _ = repo.has_wiki
-            has_docs_folder = False
 
             try:
                 readme_content = repo.get_readme().decoded_content.decode("utf-8")
@@ -508,6 +510,177 @@ class GithubMetricsFetcher:
                 "missing_features": [],
                 "summary": "Could not analyze codebase due to errors.",
             }
+
+
+def detect_celo_evidence(repo) -> Dict[str, Any]:
+    """
+    Detect Celo integration evidence in a repository.
+
+    Args:
+        repo: GitHub repository object
+
+    Returns:
+        Dict[str, Any]: Evidence of Celo integration
+    """
+    try:
+        evidence = {
+            "celo_references": [],
+            "alfajores_references": [],
+            "contract_addresses": [],
+            "celo_packages": [],
+            "summary": "",
+        }
+
+        # Check in README first
+        try:
+            readme_content = repo.get_readme().decoded_content.decode("utf-8").lower()
+
+            # Check for Celo mentions
+            if "celo" in readme_content:
+                evidence["celo_references"].append("README.md")
+
+            # Check for Alfajores mentions
+            if "alfajores" in readme_content:
+                evidence["alfajores_references"].append("README.md")
+
+            # Look for contract addresses with better context detection
+            # First look for addresses near Celo keywords
+            celo_context_pattern = (
+                r"(?i)(?:celo|alfajores|baklava|contract|deploy|address).{0,100}(0x[a-fA-F0-9]{40})"
+            )
+            celo_context_addresses = re.findall(celo_context_pattern, readme_content)
+
+            # Then look for all addresses as backup
+            all_addresses = re.findall(r"0x[a-fA-F0-9]{40}", readme_content)
+
+            # Combine addresses, prioritizing those with Celo context
+            prioritized_addresses = list(dict.fromkeys(celo_context_addresses + all_addresses))
+
+            if prioritized_addresses:
+                evidence["contract_addresses"].append(
+                    {
+                        "file": "README.md",
+                        "addresses": prioritized_addresses[:5],  # Limit to 5 addresses
+                        "celo_context": len(celo_context_addresses) > 0,
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"Error checking README: {str(e)}")
+
+        # Check package.json for Celo dependencies
+        try:
+            package_json = repo.get_contents("package.json").decoded_content.decode("utf-8")
+            package_data = json.loads(package_json)
+
+            # Check dependencies
+            all_deps = {}
+            if "dependencies" in package_data:
+                all_deps.update(package_data["dependencies"])
+            if "devDependencies" in package_data:
+                all_deps.update(package_data["devDependencies"])
+
+            # Find Celo packages
+            celo_deps = [dep for dep in all_deps.keys() if "celo" in dep.lower()]
+            if celo_deps:
+                evidence["celo_packages"] = celo_deps
+        except Exception as e:
+            logger.debug(f"Error checking package.json: {str(e)}")
+
+        # Check for common config and contract files
+        celo_related_paths = [
+            "contracts",
+            "src/contracts",
+            "src/utils",
+            "src/lib",
+            "src/helpers",
+            "src/services",
+            "config",
+            "src/config",
+        ]
+
+        for path in celo_related_paths:
+            try:
+                contents = repo.get_contents(path)
+                # Handle directory vs file
+                if not isinstance(contents, list):
+                    contents = [contents]
+
+                for content in contents:
+                    if content.type == "file" and content.size < 100000:  # Skip large files
+                        file_content = content.decoded_content.decode(
+                            "utf-8", errors="ignore"
+                        ).lower()
+
+                        if (
+                            "celo" in file_content
+                            and content.path not in evidence["celo_references"]
+                        ):
+                            evidence["celo_references"].append(content.path)
+
+                        if (
+                            "alfajores" in file_content
+                            and content.path not in evidence["alfajores_references"]
+                        ):
+                            evidence["alfajores_references"].append(content.path)
+
+                        # Check for contract addresses with context
+                        # Look for addresses near Celo keywords first
+                        celo_context_pattern = r"(?i)(?:celo|alfajores|baklava|contract|deploy|address).{0,100}(0x[a-fA-F0-9]{40})"
+                        celo_context_addresses = re.findall(celo_context_pattern, file_content)
+
+                        # Then look for all addresses
+                        all_addresses = re.findall(r"0x[a-fA-F0-9]{40}", file_content)
+
+                        # Skip if no addresses found
+                        if all_addresses and len(all_addresses) > 0:
+                            # Prioritize addresses with Celo context
+                            prioritized_addresses = list(
+                                dict.fromkeys(celo_context_addresses + all_addresses)
+                            )
+
+                            evidence["contract_addresses"].append(
+                                {
+                                    "file": content.path,
+                                    "addresses": prioritized_addresses[:5],  # Limit to 5 addresses
+                                    "celo_context": len(celo_context_addresses) > 0,
+                                }
+                            )
+            except Exception:
+                # Path might not exist, just continue
+                pass
+
+        # Generate a summary
+        summary_parts = []
+        if evidence["celo_references"]:
+            summary_parts.append(
+                f"Celo references found in {len(evidence['celo_references'])} files"
+            )
+        if evidence["alfajores_references"]:
+            summary_parts.append(
+                f"Alfajores testnet references found in {len(evidence['alfajores_references'])} files"
+            )
+        if evidence["contract_addresses"]:
+            summary_parts.append(
+                f"Contract addresses found in {len(evidence['contract_addresses'])} files"
+            )
+        if evidence["celo_packages"]:
+            summary_parts.append(f"Celo packages found: {', '.join(evidence['celo_packages'])}")
+
+        if summary_parts:
+            evidence["summary"] = ". ".join(summary_parts)
+        else:
+            evidence["summary"] = "No direct evidence of Celo integration found"
+
+        return evidence
+    except Exception as e:
+        logger.warning(f"Error detecting Celo evidence: {str(e)}")
+        return {
+            "celo_references": [],
+            "alfajores_references": [],
+            "contract_addresses": [],
+            "celo_packages": [],
+            "summary": f"Error detecting Celo evidence: {str(e)}",
+        }
 
 
 def fetch_github_metrics(
