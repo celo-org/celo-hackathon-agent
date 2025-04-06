@@ -135,47 +135,87 @@ def extract_scores_from_markdown(markdown_content: str) -> Dict[str, float]:
     """
     scores = {}
 
+    # For debugging
+    logger.debug(f"Extracting scores from markdown content of length: {len(markdown_content)}")
+
+    # Check for the special case where content is wrapped in ```markdown blocks
+    if markdown_content.startswith("```markdown") or markdown_content.startswith("```"):
+        logger.debug(
+            "Content appears to be wrapped in markdown code blocks, extracting inner content"
+        )
+        lines = markdown_content.splitlines()
+        # Find the first and last code block markers
+        start_idx = next((i for i, line in enumerate(lines) if line.startswith("```")), 0)
+        end_idx = (
+            len(lines) - 1 - next((i for i, line in enumerate(reversed(lines)) if line == "```"), 0)
+        )
+
+        # Extract the content between the markers (if they exist)
+        if start_idx < end_idx:
+            # Skip the first line with ```markdown
+            inner_content = "\n".join(lines[start_idx + 1 : end_idx])
+            if inner_content:
+                logger.debug(f"Extracted inner markdown content of length: {len(inner_content)}")
+                markdown_content = inner_content
+
     # First try to extract from the score table (preferred method)
-    # Pattern looks for a number that can be an integer or decimal (e.g., 8 or 8.5)
-    table_pattern = r"\|\s*([^|]+)\s*\|\s*(\d+(?:\.\d+)?)\s*\|"
+    # Pattern looks for a number that can be an integer or decimal followed by /10 (e.g., 8/10 or 8.5/10)
+    table_pattern = r"\|\s*([^|]+)\s*\|\s*(\d+(?:\.\d+)?)(?:/10)?\s*\|"
     table_matches = re.findall(table_pattern, markdown_content)
+    logger.debug(f"Found {len(table_matches)} potential score matches in table format")
 
     if table_matches:
         for criterion, score_str in table_matches:
             criterion = criterion.strip().lower()
             try:
-                score = float(score_str.strip())
+                # Remove "/10" if present in the score string
+                score_str = score_str.strip().replace("/10", "").strip()
+                score = float(score_str)
+
+                # Log what we found
+                logger.debug(f"Found score: {score} for criterion: {criterion}")
 
                 # If the score is on a 0-100 scale, convert to 0-10
                 if score > 10:
                     score = round(score / 10, 1)
+                    logger.debug(f"Converted to 0-10 scale: {score}")
 
                 # Map various criteria names to standardized keys
                 if "security" in criterion:
                     scores["security"] = score
+                    logger.debug(f"Mapped to security: {score}")
                 elif any(term in criterion for term in ["function", "correct"]):
                     scores["functionality"] = score
+                    logger.debug(f"Mapped to functionality: {score}")
                 elif any(term in criterion for term in ["read", "understand"]):
                     scores["readability"] = score
+                    logger.debug(f"Mapped to readability: {score}")
                 elif any(term in criterion for term in ["depend", "setup"]):
                     scores["dependencies"] = score
+                    logger.debug(f"Mapped to dependencies: {score}")
                 elif any(term in criterion for term in ["evidence", "technical", "usage", "celo"]):
                     scores["evidence"] = score
+                    logger.debug(f"Mapped to evidence: {score}")
                 elif "overall" in criterion:
                     scores["overall"] = score
-            except ValueError:
+                    logger.debug(f"Mapped to overall: {score}")
+                else:
+                    logger.debug(f"Could not map criterion: {criterion}")
+            except ValueError as e:
+                logger.warning(f"Error parsing score '{score_str}': {e}")
                 continue
 
     # If we couldn't find scores in a table, try individual patterns as fallback
     if not scores or len(scores) < 5:
-        # Define patterns to look for (allowing for decimal scores)
+        logger.debug(f"Falling back to individual patterns (current scores: {scores})")
+        # Define patterns to look for (allowing for decimal scores with optional /10)
         patterns = {
-            "security": r"Security:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
-            "functionality": r"Functionality\s*(?:&|and)\s*Correctness:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
-            "readability": r"Readability:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)|Readability\s*(?:&|and)\s*Understandability:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
-            "dependencies": r"Dependencies\s*(?:&|and)\s*Setup:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
-            "evidence": r"Evidence\s+of\s+(?:Technical|Celo)\s+Usage:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
-            "overall": r"Overall\s*(?:Score)?:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)",
+            "security": r"Security:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)(?:/10)?",
+            "functionality": r"Functionality\s*(?:&|and)\s*Correctness:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)(?:/10)?",
+            "readability": r"Readability:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)(?:/10)?|Readability\s*(?:&|and)\s*Understandability:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)(?:/10)?",
+            "dependencies": r"Dependencies\s*(?:&|and)\s*Setup:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)(?:/10)?",
+            "evidence": r"Evidence\s+of\s+(?:Technical|Celo)\s+Usage:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)(?:/10)?",
+            "overall": r"Overall\s*(?:Score)?:?\s+(?:score)?\s*[:-]?\s*(\d+(?:\.\d+)?)(?:/10)?",
         }
 
         # Extract scores using regex
@@ -187,20 +227,30 @@ def extract_scores_from_markdown(markdown_content: str) -> Dict[str, float]:
                     capture_groups = match.groups()
                     score_str = next((g for g in capture_groups if g is not None), None)
                     if score_str:
+                        # Remove "/10" if present in the score string
+                        score_str = score_str.strip().replace("/10", "").strip()
                         score = float(score_str)
+                        logger.debug(f"Found {score_name} score: {score} using pattern")
+
                         # If the score is on a 0-100 scale, convert to 0-10
                         if score > 10:
                             score = round(score / 10, 1)
+                            logger.debug(f"Converted to 0-10 scale: {score}")
+
                         scores[score_name] = score
-                except (ValueError, IndexError):
-                    logger.warning(f"Could not extract {score_name} score")
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Could not extract {score_name} score: {e}")
 
     # If we still don't have an overall score but have other scores, calculate it
     if "overall" not in scores and len(scores) >= 3:
         other_scores = [s for k, s in scores.items() if k != "overall"]
         if other_scores:
             scores["overall"] = round(sum(other_scores) / len(other_scores), 1)
+            logger.debug(
+                f"Calculated overall score: {scores['overall']} from {len(other_scores)} scores"
+            )
 
+    logger.debug(f"Final extracted scores: {scores}")
     return scores
 
 

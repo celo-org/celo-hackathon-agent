@@ -35,7 +35,7 @@ DEFAULT_MODEL = "gemini-2.0-flash"
 # Default temperature for generation
 DEFAULT_TEMPERATURE = 0.2
 # Maximum token limit (can be overridden by model-specific limits)
-MAX_TOKENS = 30000
+MAX_TOKENS = 900000
 # Maximum retry attempts for API calls
 MAX_RETRIES = 3
 # Delay between retries (in seconds)
@@ -88,7 +88,9 @@ def create_llm_chain(
 
     # Validate model name
     if model_name not in AVAILABLE_MODELS:
-        logger.warning(f"Model {model_name} not recognized, using {DEFAULT_MODEL} instead")
+        logger.warning(
+            f"Model {model_name} not recognized, using {DEFAULT_MODEL} instead"
+        )
         model_name = DEFAULT_MODEL
 
     # Get model-specific token limit or use default
@@ -262,7 +264,9 @@ def analyze_single_repository(
 
             # Calculate time taken
             elapsed_time = time.time() - start_time
-            logger.info(f"Analysis complete for {repo_name} in {elapsed_time:.2f} seconds")
+            logger.info(
+                f"Analysis complete for {repo_name} in {elapsed_time:.2f} seconds"
+            )
 
             return analysis
 
@@ -333,7 +337,13 @@ def analyze_repositories(
 
         # Analyze this repository
         analysis = analyze_single_repository(
-            repo_name, code_digest, prompt_path, model_name, temperature, output_json, repo_metrics
+            repo_name,
+            code_digest,
+            prompt_path,
+            model_name,
+            temperature,
+            output_json,
+            repo_metrics,
         )
 
         # Store the result
@@ -342,14 +352,20 @@ def analyze_repositories(
     # Calculate and log statistics
     total_time = time.time() - start_time
     successful_analyses = sum(
-        1 for v in results.values() if not isinstance(v, str) or not v.startswith("Error:")
+        1
+        for v in results.values()
+        if not isinstance(v, str) or not v.startswith("Error:")
     )
 
-    logger.info(f"Analyzed {successful_analyses}/{total_repos} repositories successfully")
+    logger.info(
+        f"Analyzed {successful_analyses}/{total_repos} repositories successfully"
+    )
     logger.info(f"Total analysis time: {total_time:.2f} seconds")
 
     if successful_analyses < total_repos:
-        logger.warning(f"Failed to analyze {total_repos - successful_analyses} repositories")
+        logger.warning(
+            f"Failed to analyze {total_repos - successful_analyses} repositories"
+        )
 
     return results
 
@@ -413,7 +429,9 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
             # Alfajores references
             if evidence.get("alfajores_references"):
                 formatted.append("\n#### Files with Alfajores References:")
-                for file_path in evidence["alfajores_references"][:10]:  # Limit to 10 files
+                for file_path in evidence["alfajores_references"][
+                    :10
+                ]:  # Limit to 10 files
                     formatted.append(f"- `{file_path}`")
 
             # Contract addresses
@@ -436,7 +454,9 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
                     has_celo_context = readme_addresses.get("celo_context", False)
 
                     if has_celo_context:
-                        formatted.append("- **README.md Contains Celo Contract Addresses:**")
+                        formatted.append(
+                            "- **README.md Contains Celo Contract Addresses:**"
+                        )
                     else:
                         formatted.append("- **README.md Contains Contract Addresses:**")
 
@@ -449,7 +469,9 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
                     has_celo_context = item.get("celo_context", False)
 
                     if has_celo_context:
-                        formatted.append(f"- File: `{item['file']}` (Celo context detected)")
+                        formatted.append(
+                            f"- File: `{item['file']}` (Celo context detected)"
+                        )
                     else:
                         formatted.append(f"- File: `{item['file']}`")
 

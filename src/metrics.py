@@ -279,6 +279,7 @@ class GithubMetricsFetcher:
             # Using parallel processing for better performance
             closed_pulls = list(repo.get_pulls(state="closed")[:100])
 
+            # Only process if there are actually closed PRs
             if closed_pulls:
                 with concurrent.futures.ThreadPoolExecutor(
                     max_workers=min(10, len(closed_pulls))

@@ -49,7 +49,7 @@ Generated: 2025-04-06 09:59:17
 | ETH-it-works-it-works/ethglobaltaipei-mystic-kaiser | 4.0/10 | 5.0/10 | 6.0/10 | 5.0/10 | 7.0/10 | 5.4/10 |
 | smart-bonds/TokenVote | 6.5/10 | 8.0/10 | 7.5/10 | 7.0/10 | 4.0/10 | 6.6/10 |
 | ekincixyz/tnd25 | 7.0/10 | 8.0/10 | 8.5/10 | 9.0/10 | 6.0/10 | 7.7/10 |
-| Giri-Aayush/finix-ethtaipei-2025 | 4.0/10 | 5.0/10 | 6.0/10 | 5.0/10 | 6.0/10 | 5.2/10 |
+| Giri-Aayush/finix-ethtaipei-2025 | 8.0/10 | 7.5/10 | 7.0/10 | 7.5/10 | 8.0/10 | 7.6/10 |
 | Doge-is-Dope/The-Shill-Game | 6.0/10 | 8.0/10 | 7.5/10 | 7.0/10 | 6.5/10 | 7.0/10 |
 | kevinsslin/SelfSphere | 6.5/10 | 8.0/10 | 8.5/10 | 8.0/10 | 7.0/10 | 7.4/10 |
 | yash251/taifei-bazaar | 6.0/10 | 7.5/10 | 7.0/10 | 7.0/10 | 6.5/10 | 6.8/10 |

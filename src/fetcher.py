@@ -14,6 +14,162 @@ logger = logging.getLogger(__name__)
 
 # Define exclusion patterns for repositories
 EXCLUDE_PATTERNS = [
+    # Python
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    "__pycache__",
+    ".pytest_cache",
+    ".coverage",
+    ".tox",
+    ".nox",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".hypothesis",
+    "poetry.lock",
+    "Pipfile.lock",
+    # JavaScript/FileSystemNode
+    "node_modules",
+    "bower_components",
+    "package-lock.json",
+    "yarn.lock",
+    ".npm",
+    ".yarn",
+    ".pnpm-store",
+    "bun.lock",
+    "bun.lockb",
+    # Java
+    "*.class",
+    "*.jar",
+    "*.war",
+    "*.ear",
+    "*.nar",
+    ".gradle/",
+    "build/",
+    ".settings/",
+    ".classpath",
+    "gradle-app.setting",
+    "*.gradle",
+    # IDEs and editors / Java
+    ".project",
+    # C/C++
+    "*.o",
+    "*.obj",
+    "*.dll",
+    "*.dylib",
+    "*.exe",
+    "*.lib",
+    "*.out",
+    "*.a",
+    "*.pdb",
+    # Swift/Xcode
+    ".build/",
+    "*.xcodeproj/",
+    "*.xcworkspace/",
+    "*.pbxuser",
+    "*.mode1v3",
+    "*.mode2v3",
+    "*.perspectivev3",
+    "*.xcuserstate",
+    "xcuserdata/",
+    ".swiftpm/",
+    # Ruby
+    "*.gem",
+    ".bundle/",
+    "vendor/bundle",
+    "Gemfile.lock",
+    ".ruby-version",
+    ".ruby-gemset",
+    ".rvmrc",
+    # Rust
+    "Cargo.lock",
+    "**/*.rs.bk",
+    # Java / Rust
+    "target/",
+    # Go
+    "pkg/",
+    # .NET/C#
+    "obj/",
+    "*.suo",
+    "*.user",
+    "*.userosscache",
+    "*.sln.docstates",
+    "packages/",
+    "*.nupkg",
+    # Go / .NET / C#
+    "bin/",
+    # Version control
+    ".git",
+    ".svn",
+    ".hg",
+    ".gitignore",
+    ".gitattributes",
+    ".gitmodules",
+    # Images and media
+    "*.svg",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.gif",
+    "*.ico",
+    "*.pdf",
+    "*.mov",
+    "*.mp4",
+    "*.mp3",
+    "*.wav",
+    # Virtual environments
+    "venv",
+    ".venv",
+    "env",
+    ".env",
+    "virtualenv",
+    # IDEs and editors
+    ".idea",
+    ".vscode",
+    ".vs",
+    "*.swo",
+    "*.swn",
+    ".settings",
+    "*.sublime-*",
+    # Temporary and cache files
+    "*.log",
+    "*.bak",
+    "*.swp",
+    "*.tmp",
+    "*.temp",
+    ".cache",
+    ".sass-cache",
+    ".eslintcache",
+    ".DS_Store",
+    "Thumbs.db",
+    "desktop.ini",
+    # Build directories and artifacts
+    "build",
+    "dist",
+    "target",
+    "out",
+    "*.egg-info",
+    "*.egg",
+    "*.whl",
+    "*.so",
+    # Documentation
+    "site-packages",
+    ".docusaurus",
+    ".next",
+    ".nuxt",
+    # Other common patterns
+    ## Minified files
+    "*.min.js",
+    "*.min.css",
+    ## Source maps
+    "*.map",
+    ## Terraform
+    ".terraform",
+    "*.tfstate*",
+    ## Dependencies in various languages
+    "vendor/",
+    # Gitingest
+    "digest.txt",
     "node_modules",
     ".git",
     "__pycache__",
@@ -124,7 +280,9 @@ def fetch_single_repository(
 
     try:
         # Use gitingest to fetch the repository content
-        summary, tree, content = ingest(normalized_url, exclude_patterns=exclude_patterns_set)
+        summary, tree, content = ingest(
+            normalized_url, exclude_patterns=exclude_patterns_set
+        )
 
         # Log summary information
         logger.info(f"Successfully fetched {repo_name} content")
@@ -167,7 +325,9 @@ def fetch_single_repository(
 
 
 def fetch_repositories(
-    repo_urls: List[str], include_metrics: bool = True, github_token: Optional[str] = None
+    repo_urls: List[str],
+    include_metrics: bool = True,
+    github_token: Optional[str] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Fetch multiple repositories and return their code digests and metrics.
@@ -184,7 +344,9 @@ def fetch_repositories(
 
     # Process each repository individually
     for url in repo_urls:
-        repo_name, repo_data = fetch_single_repository(url, include_metrics, github_token)
+        repo_name, repo_data = fetch_single_repository(
+            url, include_metrics, github_token
+        )
         results[repo_name] = repo_data
 
     logger.info(f"Fetched data for {len(results)} repositories successfully")
