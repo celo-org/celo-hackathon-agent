@@ -20,8 +20,9 @@ if project_root not in sys.path:
 from dotenv import load_dotenv
 load_dotenv()
 
-# Import worker functions
-from api.app.worker import analyze_repository
+# Import analyze_repository function directly
+sys.path.insert(0, os.path.join(project_root, "api"))
+from app.worker import analyze_repository
 
 # Configure logging
 log_level_name = os.getenv("LOG_LEVEL", "INFO")

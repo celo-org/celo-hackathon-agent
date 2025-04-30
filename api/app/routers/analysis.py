@@ -107,13 +107,12 @@ async def get_analysis_tasks(
         offset=offset,
     )
     
-    # Count total tasks
-    db = await get_db_session()
+    # Count total tasks using the analysis service's db session
     total_query = (
         select(AnalysisTask)
         .where(AnalysisTask.user_id == current_user.id)
     )
-    total_result = await db.execute(total_query)
+    total_result = await analysis_service.db.execute(total_query)
     total = len(total_result.scalars().all())
     
     # Convert tasks to response schema
