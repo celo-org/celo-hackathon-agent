@@ -1,6 +1,9 @@
 #!/bin/bash
 # Start script for the GitHub Repository Analyzer API
 
+# Prevent issues with fork() on macOS
+export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+
 # Load environment variables
 source .env
 

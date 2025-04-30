@@ -11,6 +11,9 @@ import argparse
 from redis import Redis
 from rq import Worker, Queue
 
+# Prevent issues with fork() on macOS
+os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
+
 # Add project root to path
 project_root = os.path.dirname(os.path.abspath(__file__))
 if project_root not in sys.path:
