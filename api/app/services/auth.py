@@ -170,3 +170,82 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
     query = select(User).where(User.id == user_id)
     result = await db.execute(query)
     return result.scalars().first()
+
+
+class AuthService:
+    """Service for authentication and user management."""
+    
+    def __init__(self, db: AsyncSession):
+        """
+        Initialize the auth service.
+        
+        Args:
+            db: Database session
+        """
+        self.db = db
+    
+    async def authenticate(self, username_or_email: str, password: str) -> Optional[User]:
+        """
+        Authenticate a user.
+        
+        Args:
+            username_or_email: Username or email
+            password: Password
+            
+        Returns:
+            Optional[User]: The user if authentication is successful, None otherwise
+        """
+        return await authenticate_user(self.db, username_or_email, password)
+    
+    async def create_new_user(self, user_data: UserCreate) -> User:
+        """
+        Create a new user.
+        
+        Args:
+            user_data: User creation data
+            
+        Returns:
+            User: The created user
+        """
+        return await create_user(self.db, user_data)
+    
+    async def get_by_username(self, username: str) -> Optional[User]:
+        """
+        Get a user by username.
+        
+        Args:
+            username: Username
+            
+        Returns:
+            Optional[User]: The user if found, None otherwise
+        """
+        return await get_user_by_username(self.db, username)
+    
+    async def get_by_email(self, email: str) -> Optional[User]:
+        """
+        Get a user by email.
+        
+        Args:
+            email: Email
+            
+        Returns:
+            Optional[User]: The user if found, None otherwise
+        """
+        return await get_user_by_email(self.db, email)
+    
+    async def get_by_id(self, user_id: str) -> Optional[User]:
+        """
+        Get a user by ID.
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            Optional[User]: The user if found, None otherwise
+        """
+        return await get_user_by_id(self.db, user_id)
+
+
+async def get_auth_service(db: AsyncSession):
+    """Get auth service instance."""
+    return AuthService(db)
