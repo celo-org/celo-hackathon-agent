@@ -117,6 +117,9 @@ EXCLUDE_PATTERNS = [
     "*.mp4",
     "*.mp3",
     "*.wav",
+    "*.csv",
+    ".gitbook",
+    ".gitbook/*",
     # Virtual environments
     "venv",
     ".venv",
