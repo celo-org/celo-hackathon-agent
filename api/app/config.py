@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.5-pro-preview-03-25")
     TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.2"))
+    
+    # GitHub settings
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
 
     # CORS settings
     CORS_ORIGINS: list = ["*"]
@@ -87,6 +90,7 @@ class Settings(BaseSettings):
             "log_level": self.LOG_LEVEL,
             "ipfs_url": self.IPFS_URL,
             "ipfs_gateway": self.IPFS_GATEWAY,
+            "github_token": self.GITHUB_TOKEN,
         }
 
 
