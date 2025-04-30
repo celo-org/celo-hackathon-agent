@@ -113,8 +113,18 @@ class ReportService:
         """
         content = report.content
         
+        # Special case: if we have raw_markdown, just return it
+        if isinstance(content, dict) and "raw_markdown" in content:
+            logger.info("Using raw markdown content from report")
+            return content["raw_markdown"]
+        
         if not isinstance(content, dict):
             return f"# Analysis Report for {report.repo_name}\n\nError: Invalid report format"
+        
+        # Check for error
+        if "error" in content:
+            error_message = content.get("error", "Unknown error")
+            return f"# Analysis Report for {report.repo_name}\n\nError: {error_message}\n\nPlease try running the analysis again."
             
         # Build markdown report
         md_content = []

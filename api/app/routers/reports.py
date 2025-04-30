@@ -58,7 +58,7 @@ async def get_reports(
     report_summaries = []
     for report in reports:
         report_summary = ReportSummary(
-            report_id=report.id,
+            report_id=str(report.id),  # Convert UUID to string
             github_url=report.github_url,
             repo_name=report.repo_name,
             created_at=report.created_at,
@@ -103,7 +103,7 @@ async def get_report(
     
     # Convert to response schema
     return ReportDetail(
-        report_id=report.id,
+        report_id=str(report.id),  # Convert UUID to string
         github_url=report.github_url,
         repo_name=report.repo_name,
         created_at=report.created_at,
@@ -192,7 +192,7 @@ async def publish_report(
     # Check if report has already been published
     if report.ipfs_hash:
         return ReportSummary(
-            report_id=report.id,
+            report_id=str(report.id),  # Convert UUID to string
             github_url=report.github_url,
             repo_name=report.repo_name,
             created_at=report.created_at,
@@ -205,7 +205,7 @@ async def publish_report(
     await report_service.publish_to_ipfs(report)
     
     return ReportSummary(
-        report_id=report.id,
+        report_id=str(report.id),  # Convert UUID to string
         github_url=report.github_url,
         repo_name=report.repo_name,
         created_at=report.created_at,

@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+import re
 from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -82,15 +83,30 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         # Get analysis options
         model = options.get("model", settings.DEFAULT_MODEL)
         temperature = float(options.get("temperature", settings.TEMPERATURE))
-        prompt = options.get("prompt", "prompts/default.txt")
+        
+        # Set the correct path to the prompt file
+        # If prompt is just a name, assume it's in the prompts directory
+        prompt_option = options.get("prompt", "default")
+        
+        # Make sure it has the .txt extension
+        if not prompt_option.endswith('.txt'):
+            prompt_option = f"{prompt_option}.txt"
+            
+        if "/" not in prompt_option:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+            prompt_path = os.path.join(project_root, "prompts", prompt_option)
+        else:
+            prompt_path = prompt_option
+            
+        logger.info(f"Using prompt file: {prompt_path}")
         
         analysis = analyze_single_repository(
             repo_name,
             code_digest,
-            prompt,
+            prompt_path,
             model_name=model,
             temperature=temperature,
-            output_json=True,
+            output_json=False,
             metrics_data=metrics,
         )
         
@@ -101,15 +117,37 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         # Step 3: Create report
         logger.info(f"Creating report for: {repo_name}")
         
-        # Extract scores from analysis
-        scores = extract_scores(analysis)
+        # Extract scores from the markdown analysis
+        if not isinstance(analysis, str):
+            logger.error(f"Unexpected analysis result type: {type(analysis)}")
+            # Convert to string if not already
+            if isinstance(analysis, dict) and "raw_text" in analysis:
+                # Extract from error object
+                analysis_text = analysis["raw_text"]
+            elif isinstance(analysis, dict) and "raw_markdown" in analysis:
+                # Extract from markdown wrapper
+                analysis_text = analysis["raw_markdown"]
+            else:
+                # Convert dict to string or use error message
+                try:
+                    import json
+                    analysis_text = f"Error: Received JSON instead of markdown:\n```json\n{json.dumps(analysis, indent=2)}\n```"
+                except:
+                    analysis_text = "Error: Failed to generate report. Please try again."
+        else:
+            # Already a string
+            analysis_text = analysis
+            
+        # Extract scores from markdown
+        scores = extract_scores_from_markdown(analysis_text)
         
+        # Create the report with markdown content
         report = Report(
             task_id=task_id,
             user_id=task.user_id,
             github_url=github_url,
             repo_name=repo_name,
-            content=analysis,
+            content={"markdown": analysis_text},  # Store as a JSON with markdown key for compatibility
             scores=scores
         )
         
@@ -152,7 +190,15 @@ def extract_scores(analysis):
         dict: Extracted scores
     """
     if not isinstance(analysis, dict):
-        return {}
+        return {"overall": 0}
+        
+    # Special case for markdown content - try to extract scores from markdown tables
+    if "type" in analysis and analysis["type"] == "markdown" and "raw_markdown" in analysis:
+        return extract_scores_from_markdown(analysis["raw_markdown"])
+        
+    # Check if this is an error object
+    if "error" in analysis:
+        return {"overall": 0}
         
     scores = {}
     
@@ -168,5 +214,53 @@ def extract_scores(analysis):
     elif len(scores) > 0:
         # Calculate average if no overall score is provided
         scores["overall"] = sum(scores.values()) / len(scores)
+    else:
+        # Default overall score if no scores are found
+        scores["overall"] = 0
             
+    return scores
+    
+def extract_scores_from_markdown(markdown_text):
+    """
+    Extract scores from markdown text, typically from tables.
+    
+    Args:
+        markdown_text: Markdown text to extract scores from
+        
+    Returns:
+        dict: Extracted scores
+    """
+    scores = {}
+    
+    # Look for score patterns like "7/10" or "7.5/10"
+    score_pattern = r"(\w+)\s*\|\s*([0-9.]+)/10\s*\|"
+    matches = re.findall(score_pattern, markdown_text)
+    
+    for category, score in matches:
+        # Clean up category name (lowercase, remove special characters)
+        clean_category = category.strip().lower()
+        clean_category = re.sub(r'[^a-zA-Z0-9]', '_', clean_category)
+        
+        try:
+            # Convert score to float
+            scores[clean_category] = float(score.strip())
+        except ValueError:
+            continue
+    
+    # Extract overall score specifically
+    overall_pattern = r"overall.*\|\s*([0-9.]+)/10\s*\|"
+    overall_match = re.search(overall_pattern, markdown_text, re.IGNORECASE)
+    
+    if overall_match:
+        try:
+            scores["overall"] = float(overall_match.group(1).strip())
+        except ValueError:
+            pass
+    elif len(scores) > 0:
+        # Calculate average if no overall score is found
+        scores["overall"] = sum(scores.values()) / len(scores)
+    else:
+        # Default overall score if no scores are found
+        scores["overall"] = 0
+        
     return scores
