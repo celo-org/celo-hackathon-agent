@@ -57,6 +57,9 @@ async def get_reports(
     # Convert to response schema
     report_summaries = []
     for report in reports:
+        # Ensure scores is not None
+        scores = report.scores if report.scores is not None else {"overall": 0}
+        
         report_summary = ReportSummary(
             report_id=str(report.id),  # Convert UUID to string
             github_url=report.github_url,
@@ -64,7 +67,7 @@ async def get_reports(
             created_at=report.created_at,
             ipfs_hash=report.ipfs_hash,
             published_at=report.published_at,
-            scores=report.scores,
+            scores=scores,
         )
         report_summaries.append(report_summary)
     
@@ -102,6 +105,9 @@ async def get_report(
         )
     
     # Convert to response schema
+    # Ensure scores is not None
+    scores = report.scores if report.scores is not None else {"overall": 0}
+    
     return ReportDetail(
         report_id=str(report.id),  # Convert UUID to string
         github_url=report.github_url,
@@ -109,7 +115,7 @@ async def get_report(
         created_at=report.created_at,
         ipfs_hash=report.ipfs_hash,
         published_at=report.published_at,
-        scores=report.scores,
+        scores=scores,
         content=report.content,
     )
 
@@ -191,6 +197,9 @@ async def publish_report(
     
     # Check if report has already been published
     if report.ipfs_hash:
+        # Ensure scores is not None
+        scores = report.scores if report.scores is not None else {"overall": 0}
+        
         return ReportSummary(
             report_id=str(report.id),  # Convert UUID to string
             github_url=report.github_url,
@@ -198,11 +207,14 @@ async def publish_report(
             created_at=report.created_at,
             ipfs_hash=report.ipfs_hash,
             published_at=report.published_at,
-            scores=report.scores,
+            scores=scores,
         )
     
     # Publish to IPFS
     await report_service.publish_to_ipfs(report)
+    
+    # Ensure scores is not None
+    scores = report.scores if report.scores is not None else {"overall": 0}
     
     return ReportSummary(
         report_id=str(report.id),  # Convert UUID to string
@@ -211,5 +223,5 @@ async def publish_report(
         created_at=report.created_at,
         ipfs_hash=report.ipfs_hash,
         published_at=report.published_at,
-        scores=report.scores,
+        scores=scores,
     )

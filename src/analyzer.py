@@ -125,60 +125,8 @@ Also add a 'Codebase Breakdown' section based on the strengths, weaknesses, and 
     # Create output parser
     string_parser = StrOutputParser()
 
-    if output_json:
-        # Add specific instructions for JSON output to help the model
-        json_instruction = "\n\nPlease format your response as a valid JSON object containing the analysis results. Include scores for each category (readability, standards, complexity, testing, security) and provide an overall analysis."
-        json_prompt = ChatPromptTemplate.from_template(base_prompt + json_instruction)
-
-        # Custom JSON parsing function
-        def parse_json_string(text: str) -> dict:
-            """Parse JSON string, handling common formatting issues."""
-            try:
-                # First, try to find JSON content between triple backticks
-                json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-                if json_match:
-                    json_str = json_match.group(1).strip()
-                else:
-                    # If no code blocks, use the entire text
-                    json_str = text.strip()
-
-                # Try to parse JSON directly
-                try:
-                    return json.loads(json_str)
-                except:
-                    # If that fails, try to find a JSON object in the text
-                    # This handles cases where the model adds extra text before/after JSON
-                    object_match = re.search(r"(\{[\s\S]*\})", json_str)
-                    if object_match:
-                        return json.loads(object_match.group(1))
-                    
-                    # Check if this looks like Markdown format
-                    if "# " in text[:200] or "## " in text[:200] or "|--" in text[:500]:
-                        logger.info("Detected markdown format instead of JSON")
-                        # Create a synthetic JSON with the raw markdown
-                        return {
-                            "type": "markdown",
-                            "raw_markdown": text,
-                            "summary": {
-                                "text": "Analysis completed in markdown format."
-                            }
-                        }
-                    
-                    raise  # Re-raise the exception if we couldn't find a JSON object
-
-            except Exception as e:
-                logger.error(f"Failed to parse JSON: {e}")
-                # Return a basic error object with the raw text for debugging
-                return {
-                    "error": f"Failed to parse JSON: {str(e)}",
-                    "raw_text": text,
-                }
-
-        # Create chain with custom JSON parser
-        chain = json_prompt | llm | string_parser | parse_json_string
-    else:
-        # Use string output parser for regular text output
-        chain = prompt | llm | string_parser
+    # We're phasing out JSON output, so we'll always use the string parser
+    chain = prompt | llm | string_parser
 
     return chain
 

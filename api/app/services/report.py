@@ -113,9 +113,14 @@ class ReportService:
         """
         content = report.content
         
-        # Special case: if we have raw_markdown, just return it
+        # Return markdown directly if available
+        if isinstance(content, dict) and "markdown" in content:
+            logger.info("Using markdown content from report")
+            return content["markdown"]
+            
+        # Legacy support for raw_markdown key
         if isinstance(content, dict) and "raw_markdown" in content:
-            logger.info("Using raw markdown content from report")
+            logger.info("Using raw_markdown content from report")
             return content["raw_markdown"]
         
         if not isinstance(content, dict):
@@ -126,23 +131,15 @@ class ReportService:
             error_message = content.get("error", "Unknown error")
             return f"# Analysis Report for {report.repo_name}\n\nError: {error_message}\n\nPlease try running the analysis again."
             
+        # If we get here, we have a legacy JSON report structure - convert it to markdown
+        logger.info("Converting JSON report to markdown")
+        
         # Build markdown report
         md_content = []
         
         # Title
         md_content.append(f"# Analysis Report: {report.repo_name}")
         md_content.append(f"*Generated on: {report.created_at.strftime('%Y-%m-%d %H:%M UTC')}*\n")
-        
-        # Summary
-        if "summary" in content:
-            md_content.append("## Summary")
-            
-            if isinstance(content["summary"], dict):
-                md_content.append(content["summary"].get("text", "No summary provided."))
-            elif isinstance(content["summary"], str):
-                md_content.append(content["summary"])
-            
-            md_content.append("")
         
         # Scores
         if report.scores:
@@ -155,44 +152,60 @@ class ReportService:
                 
             md_content.append("")
         
-        # Add other sections
-        sections = [
-            "readability", "standards", "complexity", "testing", "security",
-            "strengths", "weaknesses", "recommendations"
-        ]
+        # Summary (if available in the JSON)
+        if "summary" in content:
+            md_content.append("## Summary")
+            
+            if isinstance(content["summary"], dict):
+                md_content.append(content["summary"].get("text", "No summary provided."))
+            elif isinstance(content["summary"], str):
+                md_content.append(content["summary"])
+            
+            md_content.append("")
         
-        for section in sections:
-            if section in content:
-                md_content.append(f"## {section.title()}")
+        # Try to extract all top-level fields from the JSON
+        for key, value in content.items():
+            # Skip keys we've already processed
+            if key in ["summary"]:
+                continue
                 
-                section_content = content[section]
-                if isinstance(section_content, dict):
-                    # Handle structured section
-                    if "description" in section_content:
-                        md_content.append(section_content["description"])
+            # Add a section for each key
+            md_content.append(f"## {key.title()}")
+            
+            if isinstance(value, dict):
+                # Extract text or description field
+                if "text" in value:
+                    md_content.append(value["text"])
+                elif "description" in value:
+                    md_content.append(value["description"])
                     
-                    if "details" in section_content and isinstance(section_content["details"], list):
-                        for item in section_content["details"]:
-                            md_content.append(f"- {item}")
+                # Extract score
+                if "score" in value:
+                    md_content.append(f"\nScore: {value['score']}/10")
                     
-                    if "recommendations" in section_content and isinstance(section_content["recommendations"], list):
-                        md_content.append("\n### Recommendations")
-                        for item in section_content["recommendations"]:
-                            md_content.append(f"- {item}")
-                
-                elif isinstance(section_content, list):
-                    # Handle list section
-                    for item in section_content:
-                        if isinstance(item, str):
-                            md_content.append(f"- {item}")
-                        elif isinstance(item, dict) and "text" in item:
-                            md_content.append(f"- {item['text']}")
-                
-                elif isinstance(section_content, str):
-                    # Handle string section
-                    md_content.append(section_content)
-                
-                md_content.append("")
+                # Extract lists
+                for list_key in ["details", "recommendations", "items"]:
+                    if list_key in value and isinstance(value[list_key], list):
+                        md_content.append(f"\n### {list_key.title()}")
+                        for item in value[list_key]:
+                            if isinstance(item, str):
+                                md_content.append(f"- {item}")
+                            elif isinstance(item, dict) and "text" in item:
+                                md_content.append(f"- {item['text']}")
+            
+            elif isinstance(value, list):
+                # Handle list values
+                for item in value:
+                    if isinstance(item, str):
+                        md_content.append(f"- {item}")
+                    elif isinstance(item, dict) and "text" in item:
+                        md_content.append(f"- {item['text']}")
+            
+            elif isinstance(value, str):
+                # Handle string values
+                md_content.append(value)
+            
+            md_content.append("")
         
         # Join all sections
         return "\n".join(md_content)
