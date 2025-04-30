@@ -1,0 +1,36 @@
+# Database Migrations with Alembic
+
+This directory contains database migrations for the API.
+
+## How to Run Migrations
+
+1. Initialize migrations:
+   ```
+   docker-compose exec api alembic init alembic
+   ```
+
+2. Generate a new migration:
+   ```
+   docker-compose exec api alembic revision --autogenerate -m "Description of changes"
+   ```
+
+3. Apply migrations:
+   ```
+   docker-compose exec api alembic upgrade head
+   ```
+
+4. Rollback migrations:
+   ```
+   docker-compose exec api alembic downgrade -1
+   ```
+
+5. View migration history:
+   ```
+   docker-compose exec api alembic history
+   ```
+
+## Migration Strategy
+
+- Always create a new migration for each schema change
+- Run migrations as part of CI/CD pipeline
+- Test migrations with realistic data
