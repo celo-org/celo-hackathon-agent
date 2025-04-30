@@ -33,7 +33,7 @@ class QueueService:
         
         # Add job to queue
         job = self.queue.enqueue(
-            'api.app.worker.analyze_repository',
+            'analyze_repository',
             args=(task_id, github_url, options),
             job_id=task_id,
             result_ttl=86400,  # Store result for 24 hours
