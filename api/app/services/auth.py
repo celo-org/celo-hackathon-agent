@@ -5,6 +5,7 @@ Authentication service for the API.
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Union, Dict, Any
+from fastapi import Depends
 from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,7 @@ from sqlalchemy import or_
 
 from app.config import settings
 from app.db.models import User
+from app.db.session import get_db_session
 from app.schemas.user import UserCreate
 
 logger = logging.getLogger(__name__)
@@ -246,6 +248,6 @@ class AuthService:
         return await get_user_by_id(self.db, user_id)
 
 
-async def get_auth_service(db: AsyncSession):
+async def get_auth_service(db: AsyncSession = Depends(get_db_session)):
     """Get auth service instance."""
     return AuthService(db)

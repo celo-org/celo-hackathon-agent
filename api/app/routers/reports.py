@@ -46,13 +46,12 @@ async def get_reports(
         offset=offset,
     )
     
-    # Count total reports
-    db = await get_db_session()
+    # Count total reports using the report service's db session
     total_query = (
         select(Report)
         .where(Report.user_id == current_user.id)
     )
-    total_result = await db.execute(total_query)
+    total_result = await report_service.db.execute(total_query)
     total = len(total_result.scalars().all())
     
     # Convert to response schema

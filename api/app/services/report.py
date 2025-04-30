@@ -4,11 +4,13 @@ import json
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.config import settings
 from app.db.models import Report, User
+from app.db.session import get_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +232,6 @@ class ReportService:
         return ipfs_hash
 
 # Dependency
-async def get_report_service(db: AsyncSession):
+async def get_report_service(db: AsyncSession = Depends(get_db_session)):
     """Get report service instance."""
     return ReportService(db)
