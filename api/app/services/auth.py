@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_
 
-from api.app.config import settings
-from api.app.db.models import User
-from api.app.schemas.user import UserCreate
+from app.config import settings
+from app.db.models import User
+from app.schemas.user import UserCreate
 
 logger = logging.getLogger(__name__)
 

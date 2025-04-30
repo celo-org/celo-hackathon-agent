@@ -8,7 +8,7 @@ from sqlalchemy import Column, String, ForeignKey, Boolean, Integer, DateTime, T
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from api.app.db.session import Base
+from app.db.session import Base
 
 def generate_uuid():
     """Generate a UUID."""

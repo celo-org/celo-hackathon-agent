@@ -7,9 +7,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.app.config import settings
-from api.app.routers import auth, analysis, reports, health
-from api.app.db.session import create_db_and_tables
+from app.config import settings
+from app.routers import auth, analysis, reports, health
+from app.db.session import create_db_and_tables
 
 
 # Configure logging
@@ -44,9 +44,9 @@ app = FastAPI(
     description=settings.API_DESCRIPTION,
     version=settings.API_VERSION,
     lifespan=lifespan,
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 # Add CORS middleware
@@ -71,5 +71,5 @@ async def root():
     return {
         "name": settings.PROJECT_NAME,
         "version": settings.API_VERSION,
-        "docs": "/api/docs",
+        "docs": "/docs",
     }

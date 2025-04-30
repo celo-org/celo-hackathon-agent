@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from api.app.config import settings
-from api.app.db.session import get_db_session
+from app.config import settings
+from app.db.session import get_db_session
 
 logger = logging.getLogger(__name__)
 
