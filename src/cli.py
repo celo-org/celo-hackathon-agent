@@ -31,7 +31,9 @@ def analyze(
     prompt: str = typer.Option(
         "prompts/default.txt", "--prompt", "-p", help="Path to the prompt file"
     ),
-    output: str = typer.Option("reports", "--output", "-o", help="Directory to save reports"),
+    output: str = typer.Option(
+        "reports", "--output", "-o", help="Directory to save reports"
+    ),
     log_level: str = typer.Option(
         "INFO",
         "--log-level",
@@ -39,7 +41,10 @@ def analyze(
         help="Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     ),
     model: str = typer.Option(
-        "gemini-2.0-flash", "--model", "-m", help="Gemini model to use for analysis"
+        "gemini-2.5-pro-preview-03-25",
+        "--model",
+        "-m",
+        help="Gemini model to use for analysis",
     ),
     temperature: float = typer.Option(
         0.2,
@@ -81,7 +86,9 @@ def analyze(
 
     # Fetch repository digests with progress bar
     with Progress() as progress:
-        fetch_task = progress.add_task("[green]Fetching repositories...", total=len(urls))
+        fetch_task = progress.add_task(
+            "[green]Fetching repositories...", total=len(urls)
+        )
 
         logger.info(f"Fetching {len(urls)} repositories: {', '.join(urls)}")
         repo_digests = {}
@@ -99,7 +106,9 @@ def analyze(
             progress.advance(fetch_task)
 
     if not repo_digests:
-        rich_print("[bold red]Error:[/bold red] No repositories were successfully fetched.")
+        rich_print(
+            "[bold red]Error:[/bold red] No repositories were successfully fetched."
+        )
         raise typer.Exit(code=1)
 
     # Analyze repositories
@@ -113,7 +122,9 @@ def analyze(
     )
 
     if not analyses:
-        rich_print("[bold red]Error:[/bold red] No repositories were successfully analyzed.")
+        rich_print(
+            "[bold red]Error:[/bold red] No repositories were successfully analyzed."
+        )
         raise typer.Exit(code=1)
 
     # Save reports
