@@ -10,11 +10,14 @@ from pydantic import BaseModel
 class ReportScores(BaseModel):
     """Schema for report scores."""
     security: Optional[float] = None
-    functionality: Optional[float] = None
     readability: Optional[float] = None
-    dependencies: Optional[float] = None
-    evidence: Optional[float] = None
+    standards: Optional[float] = None
+    complexity: Optional[float] = None
+    testing: Optional[float] = None
     overall: Optional[float] = None
+    
+    class Config:
+        from_attributes = True
 
 
 class ReportBase(BaseModel):
@@ -25,7 +28,10 @@ class ReportBase(BaseModel):
     created_at: datetime
     ipfs_hash: Optional[str] = None
     published_at: Optional[datetime] = None
-    scores: Optional[ReportScores] = None
+    scores: Optional[Dict[str, float]] = None
+    
+    class Config:
+        from_attributes = True
 
 
 class ReportSummary(ReportBase):
@@ -42,8 +48,14 @@ class ReportList(BaseModel):
     """Schema for listing reports."""
     reports: List[ReportSummary]
     total: int
+    
+    class Config:
+        from_attributes = True
 
 
 class ReportPublish(BaseModel):
     """Schema for publishing a report to IPFS."""
     report_id: str
+    
+    class Config:
+        from_attributes = True
