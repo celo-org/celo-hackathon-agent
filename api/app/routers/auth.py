@@ -153,8 +153,11 @@ async def login_for_access_token(
     Raises:
         HTTPException: If authentication fails
     """
+    # Get the auth service
+    auth_service = await get_auth_service(db)
+    
     # Authenticate user
-    user = await authenticate_user(db, form_data.username, form_data.password)
+    user = await auth_service.authenticate(form_data.username, form_data.password)
     
     if not user:
         logger.warning(f"Failed login attempt for username: {form_data.username}")
@@ -189,8 +192,11 @@ async def login_json(
     Raises:
         HTTPException: If authentication fails
     """
+    # Get the auth service
+    auth_service = await get_auth_service(db)
+    
     # Authenticate user
-    user = await authenticate_user(db, login_data.username, login_data.password)
+    user = await auth_service.authenticate(login_data.username, login_data.password)
     
     if not user:
         logger.warning(f"Failed login attempt for username: {login_data.username}")
