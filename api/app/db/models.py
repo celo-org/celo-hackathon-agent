@@ -50,6 +50,8 @@ class AnalysisTask(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+    worker_id = Column(String(100), nullable=True)  # ID of the worker processing this task
+    priority = Column(Integer, default=0)  # Priority of the task (higher number = higher priority)
     
     # Relationships
     user = relationship("User", back_populates="tasks")
