@@ -15,12 +15,8 @@ from app.db.models import User
 from app.schemas.user import UserCreate, User as UserSchema, UserLogin
 from app.schemas.token import Token, TokenPayload
 from app.services.auth import (
-    authenticate_user,
-    create_user,
-    get_user_by_id,
-    get_user_by_username,
-    get_user_by_email,
     create_access_token,
+    get_auth_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -69,8 +65,11 @@ async def get_current_user(
         logger.warning("JWT validation failed")
         raise credentials_exception
     
+    # Get the auth service
+    auth_service = await get_auth_service(db)
+    
     # Get the user
-    user = await get_user_by_id(db, token_data.sub)
+    user = await auth_service.get_by_id(token_data.sub)
     
     if user is None:
         logger.warning(f"User not found: {token_data.sub}")
@@ -102,8 +101,11 @@ async def register_user(
     Raises:
         HTTPException: If username or email already exists
     """
+    # Get the auth service
+    auth_service = await get_auth_service(db)
+    
     # Check if username already exists
-    existing_user = await get_user_by_username(db, user_data.username)
+    existing_user = await auth_service.get_by_username(user_data.username)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,7 +113,7 @@ async def register_user(
         )
     
     # Check if email already exists
-    existing_email = await get_user_by_email(db, user_data.email)
+    existing_email = await auth_service.get_by_email(user_data.email)
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -119,8 +121,18 @@ async def register_user(
         )
     
     # Create the user
-    user = await create_user(db, user_data)
-    return user
+    user = await auth_service.create_new_user(user_data)
+    
+    # Convert UUID to string for the response
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+    }
 
 
 @router.post("/login", response_model=Token)
