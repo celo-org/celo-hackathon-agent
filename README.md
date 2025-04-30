@@ -12,7 +12,24 @@ A tool for analyzing GitHub repositories using LLMs.
 - Automatic retries for API failures
 - Built with LangChain and Google Gemini
 
-## Installation
+## Components
+
+### CLI Tool
+
+The original command-line interface for analyzing repositories.
+
+### API Server (New!)
+
+The new RESTful API server with user accounts, background processing, and IPFS integration:
+
+- User authentication and management
+- Repository analysis via API endpoints
+- Report storage in PostgreSQL and IPFS
+- Async processing with background workers
+
+[Learn more about the API Server](api/README.md)
+
+## CLI Installation
 
 ```bash
 # Clone the repository
@@ -21,6 +38,18 @@ cd ai-project-analyzer
 
 # Install dependencies (using uv)
 uv pip install -e .
+```
+
+## API Installation
+
+```bash
+# Navigate to API directory
+cd api
+
+# Start services with Docker Compose
+docker-compose up -d
+
+# API will be available at http://localhost:8000
 ```
 
 ## Configuration
@@ -53,7 +82,7 @@ TEMPERATURE=0.2
 
 These environment variables can also be set directly in your shell environment.
 
-## Usage
+## CLI Usage
 
 ```bash
 # Basic usage
@@ -79,16 +108,6 @@ uv run main.py --github-urls github.com/celo-org/celo-composer --log-level DEBUG
 
 # Specify output directory
 uv run main.py --github-urls github.com/celo-org/celo-composer --output ./my-reports
-
-# Full example with all options
-uv run main.py \
-  --github-urls github.com/celo-org/celo-composer,github.com/celo-org/celo-monorepo \
-  --prompt prompts/celo.txt \
-  --model gemini-1.5-pro \
-  --temperature 0.3 \
-  --json \
-  --output ./reports \
-  --log-level INFO
 ```
 
 ## Available Models
