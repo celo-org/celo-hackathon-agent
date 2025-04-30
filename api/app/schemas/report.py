@@ -22,7 +22,7 @@ class ReportScores(BaseModel):
 
 class ReportBase(BaseModel):
     """Base schema for reports."""
-    report_id: str
+    task_id: str  # Using task_id instead of report_id for consistency with analysis tasks
     github_url: str
     repo_name: str
     created_at: datetime
@@ -55,7 +55,7 @@ class ReportList(BaseModel):
 
 class ReportPublish(BaseModel):
     """Schema for publishing a report to IPFS."""
-    report_id: str
+    task_id: str
     
     class Config:
         from_attributes = True

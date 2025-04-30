@@ -61,7 +61,7 @@ async def get_reports(
         scores = report.scores if report.scores is not None else {"overall": 0}
         
         report_summary = ReportSummary(
-            report_id=str(report.id),  # Convert UUID to string
+            task_id=str(report.id),  # Now using task_id instead of report_id
             github_url=report.github_url,
             repo_name=report.repo_name,
             created_at=report.created_at,
@@ -74,9 +74,9 @@ async def get_reports(
     return {"reports": report_summaries, "total": total}
 
 
-@router.get("/{report_id}", response_model=ReportDetail)
+@router.get("/{task_id}", response_model=ReportDetail)
 async def get_report(
-    report_id: str,
+    task_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     report_service: ReportService = Depends(get_report_service),
 ):
@@ -84,7 +84,7 @@ async def get_report(
     Get a specific report.
     
     Args:
-        report_id: Report ID
+        task_id: Task ID (same as report ID)
         current_user: Current authenticated user
         report_service: Report service
         
@@ -93,7 +93,7 @@ async def get_report(
     """
     # Get report
     report = await report_service.get_report(
-        report_id=report_id,
+        report_id=task_id,
         user_id=str(current_user.id),
     )
     
@@ -109,7 +109,7 @@ async def get_report(
     scores = report.scores if report.scores is not None else {"overall": 0}
     
     return ReportDetail(
-        report_id=str(report.id),  # Convert UUID to string
+        task_id=str(report.id),  # Now using task_id instead of report_id
         github_url=report.github_url,
         repo_name=report.repo_name,
         created_at=report.created_at,
@@ -120,9 +120,9 @@ async def get_report(
     )
 
 
-@router.get("/{report_id}/download")
+@router.get("/{task_id}/download")
 async def download_report(
-    report_id: str,
+    task_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     report_service: ReportService = Depends(get_report_service),
     format: str = "md",
@@ -131,7 +131,7 @@ async def download_report(
     Download a report as Markdown or JSON.
     
     Args:
-        report_id: Report ID
+        task_id: Task ID (same as report ID)
         current_user: Current authenticated user
         report_service: Report service
         format: Output format (md or json)
@@ -141,7 +141,7 @@ async def download_report(
     """
     # Get report
     report = await report_service.get_report(
-        report_id=report_id,
+        report_id=task_id,
         user_id=str(current_user.id),
     )
     
@@ -165,9 +165,9 @@ async def download_report(
     )
 
 
-@router.post("/{report_id}/publish", response_model=ReportSummary)
+@router.post("/{task_id}/publish", response_model=ReportSummary)
 async def publish_report(
-    report_id: str,
+    task_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     report_service: ReportService = Depends(get_report_service),
 ):
@@ -175,7 +175,7 @@ async def publish_report(
     Publish a report to IPFS.
     
     Args:
-        report_id: Report ID
+        task_id: Task ID (same as report ID)
         current_user: Current authenticated user
         report_service: Report service
         
@@ -184,7 +184,7 @@ async def publish_report(
     """
     # Get report
     report = await report_service.get_report(
-        report_id=report_id,
+        report_id=task_id,
         user_id=str(current_user.id),
     )
     
@@ -201,7 +201,7 @@ async def publish_report(
         scores = report.scores if report.scores is not None else {"overall": 0}
         
         return ReportSummary(
-            report_id=str(report.id),  # Convert UUID to string
+            task_id=str(report.id),  # Now using task_id instead of report_id
             github_url=report.github_url,
             repo_name=report.repo_name,
             created_at=report.created_at,
@@ -217,7 +217,7 @@ async def publish_report(
     scores = report.scores if report.scores is not None else {"overall": 0}
     
     return ReportSummary(
-        report_id=str(report.id),  # Convert UUID to string
+        task_id=str(report.id),  # Now using task_id instead of report_id
         github_url=report.github_url,
         repo_name=report.repo_name,
         created_at=report.created_at,

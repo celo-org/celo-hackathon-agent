@@ -59,7 +59,7 @@ class ReportService:
         Get a specific report.
         
         Args:
-            report_id: Report ID
+            report_id: Report ID (same as task_id)
             user_id: User ID
             
         Returns:

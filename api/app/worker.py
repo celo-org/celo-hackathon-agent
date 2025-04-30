@@ -141,8 +141,9 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         # Extract scores from markdown
         scores = extract_scores_from_markdown(analysis_text)
         
-        # Create the report with markdown content
+        # Create the report with markdown content and use the same ID as the task
         report = Report(
+            id=task_id,  # Use the same ID as the task for easier UI integration
             task_id=task_id,
             user_id=task.user_id,
             github_url=github_url,
