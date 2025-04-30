@@ -151,6 +151,19 @@ Also add a 'Codebase Breakdown' section based on the strengths, weaknesses, and 
                     object_match = re.search(r"(\{[\s\S]*\})", json_str)
                     if object_match:
                         return json.loads(object_match.group(1))
+                    
+                    # Check if this looks like Markdown format
+                    if "# " in text[:200] or "## " in text[:200] or "|--" in text[:500]:
+                        logger.info("Detected markdown format instead of JSON")
+                        # Create a synthetic JSON with the raw markdown
+                        return {
+                            "type": "markdown",
+                            "raw_markdown": text,
+                            "summary": {
+                                "text": "Analysis completed in markdown format."
+                            }
+                        }
+                    
                     raise  # Re-raise the exception if we couldn't find a JSON object
 
             except Exception as e:
@@ -158,7 +171,7 @@ Also add a 'Codebase Breakdown' section based on the strengths, weaknesses, and 
                 # Return a basic error object with the raw text for debugging
                 return {
                     "error": f"Failed to parse JSON: {str(e)}",
-                    "raw_text": text[:500] + "..." if len(text) > 500 else text,
+                    "raw_text": text,
                 }
 
         # Create chain with custom JSON parser
