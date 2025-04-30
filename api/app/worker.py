@@ -12,8 +12,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-from api.app.config import settings
-from api.app.db.models import AnalysisTask, Report
+from app.config import settings
+from app.db.models import AnalysisTask, Report
 
 # Import CLI analysis tools
 from src.fetcher import fetch_single_repository

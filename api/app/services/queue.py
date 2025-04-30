@@ -32,8 +32,9 @@ class QueueService:
         logger.info(f"Enqueuing analysis task: {task_id} for {github_url}")
         
         # Add job to queue
+        from app.worker import analyze_repository
         job = self.queue.enqueue(
-            'analyze_repository',
+            analyze_repository,
             args=(task_id, github_url, options),
             job_id=task_id,
             result_ttl=86400,  # Store result for 24 hours
