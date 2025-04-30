@@ -40,3 +40,6 @@ class AnalysisTaskList(BaseModel):
     """Schema for listing analysis tasks."""
     tasks: List[AnalysisStatus]
     total: int
+    
+    class Config:
+        from_attributes = True

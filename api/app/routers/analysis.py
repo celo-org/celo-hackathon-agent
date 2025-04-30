@@ -69,7 +69,16 @@ async def submit_analysis(
         options=options,
     )
     
-    return task
+    # Convert to response schema
+    return {
+        "task_id": str(task.id),
+        "status": task.status,
+        "github_url": task.github_url,
+        "progress": task.progress,
+        "submitted_at": task.created_at,
+        "error_message": task.error_message,
+        "completed_at": task.completed_at,
+    }
 
 
 @router.get("/tasks", response_model=AnalysisTaskList)
@@ -92,7 +101,7 @@ async def get_analysis_tasks(
         AnalysisTaskList: List of analysis tasks
     """
     # Get tasks
-    tasks = await analysis_service.get_user_tasks(
+    task_objects = await analysis_service.get_user_tasks(
         user_id=str(current_user.id),
         limit=limit,
         offset=offset,
@@ -106,6 +115,19 @@ async def get_analysis_tasks(
     )
     total_result = await db.execute(total_query)
     total = len(total_result.scalars().all())
+    
+    # Convert tasks to response schema
+    tasks = []
+    for task in task_objects:
+        tasks.append({
+            "task_id": str(task.id),
+            "status": task.status,
+            "github_url": task.github_url,
+            "progress": task.progress,
+            "submitted_at": task.created_at,
+            "error_message": task.error_message,
+            "completed_at": task.completed_at,
+        })
     
     return {"tasks": tasks, "total": total}
 
@@ -140,7 +162,16 @@ async def get_analysis_task(
             detail="Analysis task not found",
         )
     
-    return task
+    # Convert to response schema
+    return {
+        "task_id": str(task.id),
+        "status": task.status,
+        "github_url": task.github_url,
+        "progress": task.progress,
+        "submitted_at": task.created_at,
+        "error_message": task.error_message,
+        "completed_at": task.completed_at,
+    }
 
 
 @router.delete("/tasks/{task_id}", response_model=AnalysisStatus)
@@ -173,4 +204,13 @@ async def cancel_analysis_task(
             detail="Analysis task not found or cannot be canceled",
         )
     
-    return task
+    # Convert to response schema
+    return {
+        "task_id": str(task.id),
+        "status": task.status,
+        "github_url": task.github_url,
+        "progress": task.progress,
+        "submitted_at": task.created_at,
+        "error_message": task.error_message,
+        "completed_at": task.completed_at,
+    }
