@@ -7,8 +7,8 @@ from pydantic import PostgresDsn, RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from root .env file
+load_dotenv(dotenv_path="../../.env")
 
 
 class Settings(BaseSettings):
@@ -57,7 +57,6 @@ class Settings(BaseSettings):
     
     # Model config
     model_config = SettingsConfigDict(
-        env_file=".env",
         case_sensitive=True,
     )
 

@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from api.app.config import settings
-from api.app.db.session import get_db_session
-from api.app.db.models import User, Report
-from api.app.routers.auth import get_current_user
-from api.app.schemas.report import ReportSummary, ReportDetail, ReportList, ReportPublish
+from app.config import settings
+from app.db.session import get_db_session
+from app.db.models import User, Report
+from app.routers.auth import get_current_user
+from app.schemas.report import ReportSummary, ReportDetail, ReportList, ReportPublish
 
 logger = logging.getLogger(__name__)
 

@@ -9,12 +9,12 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
 
-from api.app.config import settings
-from api.app.db.session import get_db_session
-from api.app.db.models import User
-from api.app.schemas.user import UserCreate, User as UserSchema, UserLogin
-from api.app.schemas.token import Token, TokenPayload
-from api.app.services.auth import (
+from app.config import settings
+from app.db.session import get_db_session
+from app.db.models import User
+from app.schemas.user import UserCreate, User as UserSchema, UserLogin
+from app.schemas.token import Token, TokenPayload
+from app.services.auth import (
     authenticate_user,
     create_user,
     get_user_by_id,
