@@ -127,3 +127,25 @@ def validate_github_url(url: str) -> bool:
     """
     github_repo_pattern = re.compile(r"^https?://(?:www\.)?github\.com/[\w.-]+/[\w.-]+/?$")
     return bool(github_repo_pattern.match(url))
+
+
+def extract_repo_name_from_url(url: str) -> str:
+    """
+    Extract repository owner and name from a GitHub URL.
+
+    Args:
+        url: GitHub repository URL.
+
+    Returns:
+        str: Repository name in format "owner/repo".
+    """
+    # Match GitHub repository URL pattern and extract owner and repo
+    github_pattern = re.compile(r"https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+)")
+    match = github_pattern.search(url)
+    
+    if match:
+        owner, repo = match.groups()
+        return f"{owner}/{repo}"
+    
+    # If no match found, return a generic name
+    return "unknown-repository"
