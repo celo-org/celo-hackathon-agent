@@ -9,7 +9,7 @@ import time
 import logging
 import argparse
 from redis import Redis
-from rq import Worker, Queue, Connection
+from rq import Worker, Queue
 
 # Add project root to path
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -64,11 +64,10 @@ def main():
     logger.info(f"Starting worker listening on queues: {', '.join(queue_names)}")
     
     # Start worker
-    with Connection(redis_conn):
-        queues = [Queue(name=name) for name in queue_names]
-        worker = Worker(queues)
-        
-        worker.work(burst=args.burst)
+    queues = [Queue(name=name, connection=redis_conn) for name in queue_names]
+    worker = Worker(queues, connection=redis_conn)
+    
+    worker.work(burst=args.burst)
 
 if __name__ == "__main__":
     main()
