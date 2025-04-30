@@ -12,7 +12,8 @@ from app.config import settings
 from app.db.session import get_db_session
 from app.db.models import User, Report
 from app.routers.auth import get_current_user
-from app.schemas.report import ReportSummary, ReportDetail, ReportList, ReportPublish
+from app.schemas.report import ReportSummary, ReportDetail, ReportList
+from app.services.report import ReportService, get_report_service
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ router = APIRouter()
 @router.get("", response_model=ReportList)
 async def get_reports(
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    report_service: ReportService = Depends(get_report_service),
     limit: int = 10,
     offset: int = 0,
 ):
@@ -31,26 +32,22 @@ async def get_reports(
     
     Args:
         current_user: Current authenticated user
-        db: Database session
+        report_service: Report service
         limit: Maximum number of reports to return
         offset: Number of reports to skip
         
     Returns:
         ReportList: List of reports
     """
-    # Query reports for the current user
-    query = (
-        select(Report)
-        .where(Report.user_id == current_user.id)
-        .order_by(Report.created_at.desc())
-        .limit(limit)
-        .offset(offset)
+    # Get reports
+    reports = await report_service.get_user_reports(
+        user_id=str(current_user.id),
+        limit=limit,
+        offset=offset,
     )
     
-    result = await db.execute(query)
-    reports = result.scalars().all()
-    
-    # Get total report count
+    # Count total reports
+    db = await get_db_session()
     total_query = (
         select(Report)
         .where(Report.user_id == current_user.id)
@@ -79,7 +76,7 @@ async def get_reports(
 async def get_report(
     report_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    report_service: ReportService = Depends(get_report_service),
 ):
     """
     Get a specific report.
@@ -87,19 +84,16 @@ async def get_report(
     Args:
         report_id: Report ID
         current_user: Current authenticated user
-        db: Database session
+        report_service: Report service
         
     Returns:
         ReportDetail: Detailed report
     """
-    # Query the report
-    query = (
-        select(Report)
-        .where(Report.id == report_id, Report.user_id == current_user.id)
+    # Get report
+    report = await report_service.get_report(
+        report_id=report_id,
+        user_id=str(current_user.id),
     )
-    
-    result = await db.execute(query)
-    report = result.scalars().first()
     
     # Check if report exists
     if not report:
@@ -125,7 +119,7 @@ async def get_report(
 async def download_report(
     report_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    report_service: ReportService = Depends(get_report_service),
     format: str = "md",
 ):
     """
@@ -134,20 +128,17 @@ async def download_report(
     Args:
         report_id: Report ID
         current_user: Current authenticated user
-        db: Database session
+        report_service: Report service
         format: Output format (md or json)
         
     Returns:
         Response: File download
     """
-    # Query the report
-    query = (
-        select(Report)
-        .where(Report.id == report_id, Report.user_id == current_user.id)
+    # Get report
+    report = await report_service.get_report(
+        report_id=report_id,
+        user_id=str(current_user.id),
     )
-    
-    result = await db.execute(query)
-    report = result.scalars().first()
     
     # Check if report exists
     if not report:
@@ -156,18 +147,11 @@ async def download_report(
             detail="Report not found",
         )
     
-    # In Phase 1, we'll return a placeholder response
-    # In Phase 2, we'll implement actual report conversion and download
-    
-    content = "# Analysis Report (Placeholder)\n\nThis is a placeholder report content."
-    content_type = "text/markdown"
-    filename = f"{report.repo_name.replace('/', '_')}_analysis.md"
-    
-    if format.lower() == "json":
-        import json
-        content = json.dumps({"message": "Placeholder JSON report"}, indent=2)
-        content_type = "application/json"
-        filename = f"{report.repo_name.replace('/', '_')}_analysis.json"
+    # Generate report content
+    content, filename, content_type = await report_service.generate_report_content(
+        report=report,
+        format=format,
+    )
     
     return Response(
         content=content,
@@ -180,7 +164,7 @@ async def download_report(
 async def publish_report(
     report_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    report_service: ReportService = Depends(get_report_service),
 ):
     """
     Publish a report to IPFS.
@@ -188,19 +172,16 @@ async def publish_report(
     Args:
         report_id: Report ID
         current_user: Current authenticated user
-        db: Database session
+        report_service: Report service
         
     Returns:
         ReportSummary: Published report summary
     """
-    # Query the report
-    query = (
-        select(Report)
-        .where(Report.id == report_id, Report.user_id == current_user.id)
+    # Get report
+    report = await report_service.get_report(
+        report_id=report_id,
+        user_id=str(current_user.id),
     )
-    
-    result = await db.execute(query)
-    report = result.scalars().first()
     
     # Check if report exists
     if not report:
@@ -221,19 +202,8 @@ async def publish_report(
             scores=report.scores,
         )
     
-    # In Phase 1, we'll set a placeholder IPFS hash
-    # In Phase 2, we'll implement actual IPFS publishing
-    
-    from datetime import datetime
-    
-    # Set placeholder IPFS hash
-    report.ipfs_hash = "QmPlaceholderHashForPhase1Implementation"
-    report.published_at = datetime.utcnow()
-    
-    await db.commit()
-    await db.refresh(report)
-    
-    logger.info(f"Published report to IPFS: {report.id}")
+    # Publish to IPFS
+    await report_service.publish_to_ipfs(report)
     
     return ReportSummary(
         report_id=report.id,
