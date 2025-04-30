@@ -20,18 +20,14 @@ logger = logging.getLogger(__name__)
 
 # Available models
 AVAILABLE_MODELS = {
-    "gemini-2.0-flash-lite": {
+    "gemini-2.5-pro-preview-03-25": {
         "description": "Balanced model for most use cases",
-        "max_tokens": 30000,
-    },
-    "gemini-2.0-flash": {
-        "description": "Advanced model with better capabilities",
-        "max_tokens": 30000,
+        "max_tokens": 1000000,
     },
 }
 
 # Default model to use
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-pro-preview-03-25"
 # Default temperature for generation
 DEFAULT_TEMPERATURE = 0.2
 # Maximum token limit (can be overridden by model-specific limits)
