@@ -195,10 +195,27 @@ class ReportService:
         Returns:
             Optional[str]: IPFS hash or None if failed
         """
-        # In Phase 2, we'll set a placeholder IPFS hash
-        # This will be replaced with actual IPFS integration in Phase 3
+        from app.services.ipfs import get_ipfs_service
         
-        ipfs_hash = f"QmPlaceholder{report.id}"
+        # Get IPFS service
+        ipfs_service = await get_ipfs_service()
+        
+        # Prepare metadata
+        metadata = {
+            "report_id": str(report.id),
+            "github_url": report.github_url,
+            "repo_name": report.repo_name,
+            "user_id": str(report.user_id),
+            "created_at": report.created_at.isoformat(),
+            "published_at": datetime.utcnow().isoformat(),
+        }
+        
+        # Publish to IPFS
+        ipfs_hash = await ipfs_service.publish_to_ipfs(report.content, metadata)
+        
+        if not ipfs_hash:
+            logger.error(f"Failed to publish report to IPFS: {report.id}")
+            return None
         
         # Update report
         report.ipfs_hash = ipfs_hash
@@ -208,7 +225,7 @@ class ReportService:
         await self.db.commit()
         await self.db.refresh(report)
         
-        logger.info(f"Published report to IPFS: {report.id}")
+        logger.info(f"Published report to IPFS: {report.id} with hash: {ipfs_hash}")
         
         return ipfs_hash
 
