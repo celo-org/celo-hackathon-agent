@@ -13,6 +13,9 @@ from app.db.session import get_db_session
 from app.db.models import User, AnalysisTask
 from app.routers.auth import get_current_user
 from app.schemas.analysis import AnalysisCreate, AnalysisStatus, AnalysisTaskList
+from app.services.analysis import AnalysisService, get_analysis_service
+from app.services.queue import QueueService, get_queue_service
+from src.file_parser import validate_github_url
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +26,7 @@ router = APIRouter()
 async def submit_analysis(
     analysis_data: AnalysisCreate,
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
 ):
     """
     Submit GitHub repository for analysis.
@@ -31,48 +34,48 @@ async def submit_analysis(
     Args:
         analysis_data: Analysis request data
         current_user: Current authenticated user
-        db: Database session
+        analysis_service: Analysis service
         
     Returns:
         AnalysisStatus: Analysis task status
     """
-    # For Phase 1, we'll just create a placeholder task
-    # In Phase 2, we'll implement the actual analysis queue
+    # Validate GitHub URLs
+    if not analysis_data.github_urls or len(analysis_data.github_urls) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one GitHub URL is required",
+        )
     
-    # TODO: Add validation for GitHub URLs
-    
-    # Create a new analysis task for the first URL
-    # In Phase 2, we'll handle multiple URLs properly
+    # For now, we only handle the first URL
+    # In future phases, we could process multiple URLs in batch
     github_url = analysis_data.github_urls[0]
+    
+    # Validate GitHub URL
+    if not validate_github_url(github_url):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid GitHub repository URL",
+        )
     
     # Create options dictionary
     options = {}
     if analysis_data.options:
         options = analysis_data.options.model_dump()
     
-    # Create the task
-    task = AnalysisTask(
-        user_id=current_user.id,
+    # Submit analysis
+    task = await analysis_service.submit_analysis(
+        user_id=str(current_user.id),
         github_url=github_url,
-        status="pending",
         options=options,
     )
     
-    # Add to database
-    db.add(task)
-    await db.commit()
-    await db.refresh(task)
-    
-    logger.info(f"Created new analysis task: {task.id} for URL: {github_url}")
-    
-    # Return task status
     return task
 
 
 @router.get("/tasks", response_model=AnalysisTaskList)
 async def get_analysis_tasks(
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
     limit: int = 10,
     offset: int = 0,
 ):
@@ -81,26 +84,22 @@ async def get_analysis_tasks(
     
     Args:
         current_user: Current authenticated user
-        db: Database session
+        analysis_service: Analysis service
         limit: Maximum number of tasks to return
         offset: Number of tasks to skip
         
     Returns:
         AnalysisTaskList: List of analysis tasks
     """
-    # Query tasks for the current user
-    query = (
-        select(AnalysisTask)
-        .where(AnalysisTask.user_id == current_user.id)
-        .order_by(AnalysisTask.created_at.desc())
-        .limit(limit)
-        .offset(offset)
+    # Get tasks
+    tasks = await analysis_service.get_user_tasks(
+        user_id=str(current_user.id),
+        limit=limit,
+        offset=offset,
     )
     
-    result = await db.execute(query)
-    tasks = result.scalars().all()
-    
-    # Get total task count
+    # Count total tasks
+    db = await get_db_session()
     total_query = (
         select(AnalysisTask)
         .where(AnalysisTask.user_id == current_user.id)
@@ -115,7 +114,7 @@ async def get_analysis_tasks(
 async def get_analysis_task(
     task_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
 ):
     """
     Get status of a specific analysis task.
@@ -123,19 +122,16 @@ async def get_analysis_task(
     Args:
         task_id: Analysis task ID
         current_user: Current authenticated user
-        db: Database session
+        analysis_service: Analysis service
         
     Returns:
         AnalysisStatus: Analysis task status
     """
-    # Query the task
-    query = (
-        select(AnalysisTask)
-        .where(AnalysisTask.id == task_id, AnalysisTask.user_id == current_user.id)
+    # Get task
+    task = await analysis_service.get_task(
+        task_id=task_id,
+        user_id=str(current_user.id),
     )
-    
-    result = await db.execute(query)
-    task = result.scalars().first()
     
     # Check if task exists
     if not task:
@@ -151,7 +147,7 @@ async def get_analysis_task(
 async def cancel_analysis_task(
     task_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
-    db: AsyncSession = Depends(get_db_session),
+    analysis_service: AnalysisService = Depends(get_analysis_service),
 ):
     """
     Cancel an analysis task if not completed.
@@ -159,41 +155,22 @@ async def cancel_analysis_task(
     Args:
         task_id: Analysis task ID
         current_user: Current authenticated user
-        db: Database session
+        analysis_service: Analysis service
         
     Returns:
         AnalysisStatus: Analysis task status
     """
-    # Query the task
-    query = (
-        select(AnalysisTask)
-        .where(AnalysisTask.id == task_id, AnalysisTask.user_id == current_user.id)
+    # Cancel task
+    task = await analysis_service.cancel_task(
+        task_id=task_id,
+        user_id=str(current_user.id),
     )
     
-    result = await db.execute(query)
-    task = result.scalars().first()
-    
-    # Check if task exists
+    # Check if task exists or can be canceled
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Analysis task not found",
+            detail="Analysis task not found or cannot be canceled",
         )
-    
-    # Check if task can be canceled
-    if task.status in ["completed", "failed"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Task cannot be canceled in '{task.status}' state",
-        )
-    
-    # Cancel the task
-    task.status = "failed"
-    task.error_message = "Canceled by user"
-    
-    await db.commit()
-    await db.refresh(task)
-    
-    logger.info(f"Canceled analysis task: {task.id}")
     
     return task
