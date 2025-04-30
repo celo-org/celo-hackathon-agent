@@ -43,13 +43,39 @@ uv pip install -e .
 ## API Installation
 
 ```bash
-# Navigate to API directory
-cd api
+# Install dependencies
+uv pip install -e .
 
-# Start services with Docker Compose
-docker-compose up -d
+# Start the Redis server (required for background processing)
+docker run -d -p 6379:6379 --name redis-server redis
+
+# Start PostgreSQL (required for database)
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=analyzer_db --name postgres-server postgres
+
+# Start the API server and worker
+./start.sh
 
 # API will be available at http://localhost:8000
+# API documentation at http://localhost:8000/docs
+```
+
+### API Components
+
+The API server consists of these components:
+
+1. **API Server**: Handles HTTP requests and responses using FastAPI
+2. **Worker Process**: Processes repository analysis tasks in the background
+3. **Redis Server**: Used for the background job queue
+4. **PostgreSQL Database**: Stores users, analysis tasks, and reports
+
+You can start these components individually:
+
+```bash
+# Start only the API server
+./start.sh --api-only
+
+# Start only the worker process
+./start.sh --worker-only
 ```
 
 ## Configuration
@@ -64,20 +90,34 @@ cp .env.template .env
 Required configuration:
 
 ```
+# LLM settings
 GOOGLE_API_KEY=your_gemini_api_key_here
+
+# For API server
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/analyzer_db
+REDIS_URL=redis://localhost:6379/0
+JWT_SECRET=your_secret_key_here
 ```
 
 Optional configuration:
 
 ```
+# API server settings
+API_HOST=0.0.0.0
+API_PORT=8000
+DEBUG=False
+
 # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 LOG_LEVEL=INFO
 
 # Default model to use
-DEFAULT_MODEL=gemini-pro
+DEFAULT_MODEL=gemini-2.5-pro-preview-03-25
 
 # Temperature setting (0.0-1.0)
 TEMPERATURE=0.2
+
+# GitHub settings
+GITHUB_TOKEN=your_github_token_here
 ```
 
 These environment variables can also be set directly in your shell environment.
