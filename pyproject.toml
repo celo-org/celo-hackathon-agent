@@ -35,6 +35,9 @@ dependencies = [
     "python-multipart",
     "greenlet",
     "psycopg2-binary",
+    "redis",
+    "rq",
+    "aioredis",
 ]
 
 [project.scripts]
