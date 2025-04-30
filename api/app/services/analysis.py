@@ -2,12 +2,14 @@
 
 import logging
 from typing import Dict, Any, List, Optional
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.config import settings
 from app.db.models import AnalysisTask, Report, User
-from app.services.queue import QueueService
+from app.db.session import get_db_session
+from app.services.queue import QueueService, get_queue_service
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +160,8 @@ class AnalysisService:
 
 # Dependency
 async def get_analysis_service(
-    db: AsyncSession,
-    queue_service: QueueService,
+    db: AsyncSession = Depends(get_db_session),
+    queue_service: QueueService = Depends(get_queue_service),
 ):
     """Get analysis service instance."""
     return AnalysisService(db, queue_service)
