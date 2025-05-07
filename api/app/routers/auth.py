@@ -33,14 +33,14 @@ async def get_current_user(
 ) -> User:
     """
     Get the current user from JWT token.
-    
+
     Args:
         token: JWT token
         db: Database session
-        
+
     Returns:
         User: The current user
-        
+
     Raises:
         HTTPException: If authentication fails
     """
@@ -49,37 +49,35 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         # Decode the token
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
-        
+
         if user_id is None:
             raise credentials_exception
-        
+
         token_data = TokenPayload(sub=user_id)
     except JWTError:
         logger.warning("JWT validation failed")
         raise credentials_exception
-    
+
     # Get the auth service
     auth_service = await get_auth_service(db)
-    
+
     # Get the user
     user = await auth_service.get_by_id(token_data.sub)
-    
+
     if user is None:
         logger.warning(f"User not found: {token_data.sub}")
         raise credentials_exception
-    
+
     # Check if user is active
     if not user.is_active:
         logger.warning(f"Inactive user: {user.id}")
         raise HTTPException(status_code=400, detail="Inactive user")
-    
+
     return user
 
 
@@ -90,20 +88,20 @@ async def register_user(
 ):
     """
     Register a new user.
-    
+
     Args:
         user_data: User registration data
         db: Database session
-        
+
     Returns:
         User: The created user
-        
+
     Raises:
         HTTPException: If username or email already exists
     """
     # Get the auth service
     auth_service = await get_auth_service(db)
-    
+
     # Check if username already exists
     existing_user = await auth_service.get_by_username(user_data.username)
     if existing_user:
@@ -111,7 +109,7 @@ async def register_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered",
         )
-    
+
     # Check if email already exists
     existing_email = await auth_service.get_by_email(user_data.email)
     if existing_email:
@@ -119,10 +117,10 @@ async def register_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-    
+
     # Create the user
     user = await auth_service.create_new_user(user_data)
-    
+
     # Convert UUID to string for the response
     return {
         "id": str(user.id),
@@ -142,23 +140,23 @@ async def login_for_access_token(
 ):
     """
     Log in and get an access token.
-    
+
     Args:
         form_data: OAuth2 form data with username and password
         db: Database session
-        
+
     Returns:
         Token: Access token
-        
+
     Raises:
         HTTPException: If authentication fails
     """
     # Get the auth service
     auth_service = await get_auth_service(db)
-    
+
     # Authenticate user
     user = await auth_service.authenticate(form_data.username, form_data.password)
-    
+
     if not user:
         logger.warning(f"Failed login attempt for username: {form_data.username}")
         raise HTTPException(
@@ -166,11 +164,11 @@ async def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Create access token
     access_token = create_access_token(user.id)
     logger.info(f"User logged in: {user.username}")
-    
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -181,23 +179,23 @@ async def login_json(
 ):
     """
     Log in with JSON data and get an access token.
-    
+
     Args:
         login_data: Login data with username and password
         db: Database session
-        
+
     Returns:
         Token: Access token
-        
+
     Raises:
         HTTPException: If authentication fails
     """
     # Get the auth service
     auth_service = await get_auth_service(db)
-    
+
     # Authenticate user
     user = await auth_service.authenticate(login_data.username, login_data.password)
-    
+
     if not user:
         logger.warning(f"Failed login attempt for username: {login_data.username}")
         raise HTTPException(
@@ -205,11 +203,11 @@ async def login_json(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Create access token
     access_token = create_access_token(user.id)
     logger.info(f"User logged in via JSON: {user.username}")
-    
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -219,10 +217,10 @@ async def get_current_user_info(
 ):
     """
     Get current user information.
-    
+
     Args:
         current_user: Current authenticated user
-        
+
     Returns:
         User: User information
     """

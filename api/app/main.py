@@ -29,11 +29,11 @@ async def lifespan(app: FastAPI):
     # Startup: create database tables
     logger.info("Creating database tables if they don't exist...")
     await create_db_and_tables()
-    
+
     # Start application
     logger.info("Application startup complete")
     yield
-    
+
     # Shutdown
     logger.info("Application shutdown")
 

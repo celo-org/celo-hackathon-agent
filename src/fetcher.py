@@ -181,7 +181,9 @@ EXCLUDE_PATTERNS = [
     "*.min.css",
     "package-lock.json",
     "pnpm-lock.yaml",
+    "pnpm-lock.yml",
     "**/pnpm-lock.yaml",
+    "**/pnpm-lock.yml",
     "**/package-lock.json",
     "**/jsdoc-automation/*",
     "bun.lock",
@@ -206,6 +208,10 @@ EXCLUDE_PATTERNS = [
     "*.hevc",
     "**/build-info/*",
     "**/solcInputs/*",
+    "solcInputs",
+    "deployments",
+    "public",
+    "typechain-types",
 ]
 
 

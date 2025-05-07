@@ -87,6 +87,8 @@ def extract_github_urls(df: pd.DataFrame, columns: List[str]) -> List[str]:
     """
     Extract GitHub repository URLs from specified columns in a DataFrame.
 
+    If a row contains multiple comma-separated GitHub URLs, each URL is processed separately.
+
     Args:
         df: DataFrame containing the data.
         columns: List of column names to extract GitHub URLs from.
@@ -100,17 +102,36 @@ def extract_github_urls(df: pd.DataFrame, columns: List[str]) -> List[str]:
     for col in columns:
         for value in df[col].dropna():
             value = str(value).strip()
-            if match := github_pattern.search(value):
-                url = match.group(0)
-                # Ensure URL doesn't end with unwanted characters
-                if url.endswith(")") and "(" not in url:
-                    url = url[:-1]
-                # Normalize URLs to not have trailing slash
-                if url.endswith("/"):
-                    url = url[:-1]
-                # Add to list if not already present
-                if url not in github_urls:
-                    github_urls.append(url)
+
+            # Check if value contains multiple comma-separated URLs
+            if "," in value:
+                # Split by comma and process each part
+                for part in value.split(","):
+                    part = part.strip()
+                    if match := github_pattern.search(part):
+                        url = match.group(0)
+                        # Ensure URL doesn't end with unwanted characters
+                        if url.endswith(")") and "(" not in url:
+                            url = url[:-1]
+                        # Normalize URLs to not have trailing slash
+                        if url.endswith("/"):
+                            url = url[:-1]
+                        # Add to list if not already present
+                        if url not in github_urls:
+                            github_urls.append(url)
+            else:
+                # Process single URL
+                if match := github_pattern.search(value):
+                    url = match.group(0)
+                    # Ensure URL doesn't end with unwanted characters
+                    if url.endswith(")") and "(" not in url:
+                        url = url[:-1]
+                    # Normalize URLs to not have trailing slash
+                    if url.endswith("/"):
+                        url = url[:-1]
+                    # Add to list if not already present
+                    if url not in github_urls:
+                        github_urls.append(url)
 
     return github_urls
 
@@ -142,10 +163,10 @@ def extract_repo_name_from_url(url: str) -> str:
     # Match GitHub repository URL pattern and extract owner and repo
     github_pattern = re.compile(r"https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+)")
     match = github_pattern.search(url)
-    
+
     if match:
         owner, repo = match.groups()
         return f"{owner}/{repo}"
-    
+
     # If no match found, return a generic name
     return "unknown-repository"
