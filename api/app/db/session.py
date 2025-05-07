@@ -9,22 +9,20 @@ from sqlalchemy.ext.declarative import declarative_base
 from app.config import settings
 
 # Replace postgresql:// with postgresql+asyncpg:// for async SQLAlchemy
-DATABASE_URL = str(settings.DATABASE_URL).replace(
-    "postgresql://", "postgresql+asyncpg://"
-)
+DATABASE_URL = str(settings.DATABASE_URL).replace("postgresql://", "postgresql+asyncpg://")
 
 logger = logging.getLogger(__name__)
 
 # Create async engine
 engine = create_async_engine(
-    DATABASE_URL, 
+    DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
 )
 
 # Create async session factory
 async_session_factory = async_sessionmaker(
-    engine, 
+    engine,
     expire_on_commit=False,
     autoflush=False,
 )
@@ -50,7 +48,7 @@ async def create_db_and_tables():
     async with engine.begin() as conn:
         # Import models to ensure they're registered with Base metadata
         from app.db.models import User, AnalysisTask, Report, ApiKey
-        
+
         logger.info("Creating database tables...")
         await conn.run_sync(Base.metadata.create_all)
         logger.info("Database tables created or already exist")

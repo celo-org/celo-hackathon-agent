@@ -41,7 +41,7 @@ def analyze(
         help="Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     ),
     model: str = typer.Option(
-        "gemini-2.5-pro-preview-03-25",
+        "gemini-2.5-flash-preview-04-17",
         "--model",
         "-m",
         help="Gemini model to use for analysis",

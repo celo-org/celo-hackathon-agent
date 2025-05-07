@@ -1,6 +1,7 @@
 """
 Configuration module for the API server.
 """
+
 import os
 from typing import Any, Dict
 from pydantic import PostgresDsn, RedisDsn, field_validator
@@ -24,31 +25,31 @@ class Settings(BaseSettings):
     DATABASE_URL: PostgresDsn = os.getenv(
         "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/analyzer_db"
     )
-    
+
     # Redis settings
     REDIS_URL: RedisDsn = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    
+
     # Security settings
     SECRET_KEY: str = os.getenv("JWT_SECRET", "supersecretkey")
     ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRATION", "60"))
-    
+
     # IPFS settings
     IPFS_URL: str = os.getenv("IPFS_URL", "/dns/localhost/tcp/5001")
     IPFS_GATEWAY: str = os.getenv("IPFS_GATEWAY", "https://ipfs.io/ipfs/")
-    
+
     # LLM settings
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
-    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.5-pro-preview-03-25")
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.5-flash-preview-04-17")
     TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.2"))
-    
+
     # GitHub settings
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
 
     # CORS settings
     CORS_ORIGINS: list = ["*"]
     CORS_ORIGINS_REGEX: str = ""
-    
+
     # Metadata for API docs
     API_VERSION: str = "1.0.0"
     API_DESCRIPTION: str = """
@@ -57,7 +58,7 @@ class Settings(BaseSettings):
     """
     CONTACT_NAME: str = "API Support"
     CONTACT_EMAIL: str = "support@example.com"
-    
+
     # Model config
     model_config = SettingsConfigDict(
         case_sensitive=True,
@@ -70,7 +71,7 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return v
         return str(v)
-    
+
     @field_validator("REDIS_URL")
     @classmethod
     def validate_redis_url(cls, v: Any) -> Any:

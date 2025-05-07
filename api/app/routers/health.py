@@ -25,7 +25,7 @@ start_time = time.time()
 async def health_check() -> Dict[str, Any]:
     """
     Health check endpoint.
-    
+
     Returns:
         Dict[str, Any]: Health status
     """
@@ -43,10 +43,10 @@ async def dependencies_health(
 ) -> Dict[str, Any]:
     """
     Check health of dependencies.
-    
+
     Args:
         db: Database session
-        
+
     Returns:
         Dict[str, Any]: Dependencies health status
     """
@@ -55,7 +55,7 @@ async def dependencies_health(
         "ipfs": "unknown",
         "llm_service": "unknown",
     }
-    
+
     # Check database connection
     try:
         # Simple query to test database connection
@@ -65,23 +65,23 @@ async def dependencies_health(
     except Exception as e:
         logger.error(f"Database health check failed: {str(e)}")
         health_data["database"] = f"unhealthy: {str(e)}"
-    
+
     # Check Google API key (for LLM service)
     if settings.GOOGLE_API_KEY:
         health_data["llm_service"] = "configured"
     else:
         health_data["llm_service"] = "unconfigured"
-    
+
     # IPFS is considered configured if IPFS_URL is set
     if settings.IPFS_URL:
         health_data["ipfs"] = "configured"
     else:
         health_data["ipfs"] = "unconfigured"
-    
+
     # Add system info
     health_data["system_info"] = {
         "python_version": sys.version,
         "api_version": settings.API_VERSION,
     }
-    
+
     return health_data

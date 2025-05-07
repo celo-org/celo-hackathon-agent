@@ -26,10 +26,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def create_access_token(subject: Union[str, Any]) -> str:
     """
     Create a JWT access token.
-    
+
     Args:
         subject: The subject of the token (usually user ID)
-        
+
     Returns:
         str: JWT token
     """
@@ -42,11 +42,11 @@ def create_access_token(subject: Union[str, Any]) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verify a password against a hash.
-    
+
     Args:
         plain_password: The plaintext password
         hashed_password: The hashed password
-        
+
     Returns:
         bool: True if the password matches the hash
     """
@@ -56,10 +56,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """
     Get a password hash.
-    
+
     Args:
         password: The plaintext password
-        
+
     Returns:
         str: The hashed password
     """
@@ -71,12 +71,12 @@ async def authenticate_user(
 ) -> Optional[User]:
     """
     Authenticate a user by username/email and password.
-    
+
     Args:
         db: Database session
         username_or_email: Username or email
         password: Password
-        
+
     Returns:
         Optional[User]: The user if authentication is successful, None otherwise
     """
@@ -86,27 +86,27 @@ async def authenticate_user(
     )
     result = await db.execute(query)
     user = result.scalars().first()
-    
+
     # Check if user exists and password is correct
     if not user or not verify_password(password, user.password_hash):
         return None
-    
+
     # Check if user is active
     if not user.is_active:
         logger.warning(f"Inactive user attempted login: {username_or_email}")
         return None
-    
+
     return user
 
 
 async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
     """
     Create a new user.
-    
+
     Args:
         db: Database session
         user_data: User creation data
-        
+
     Returns:
         User: The created user
     """
@@ -116,12 +116,12 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
         email=user_data.email,
         password_hash=get_password_hash(user_data.password),
     )
-    
+
     # Add to database
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
-    
+
     logger.info(f"Created new user: {db_user.username}")
     return db_user
 
@@ -129,11 +129,11 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
 async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
     """
     Get a user by username.
-    
+
     Args:
         db: Database session
         username: Username
-        
+
     Returns:
         Optional[User]: The user if found, None otherwise
     """
@@ -145,11 +145,11 @@ async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     """
     Get a user by email.
-    
+
     Args:
         db: Database session
         email: Email
-        
+
     Returns:
         Optional[User]: The user if found, None otherwise
     """
@@ -161,11 +161,11 @@ async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
 async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
     """
     Get a user by ID.
-    
+
     Args:
         db: Database session
         user_id: User ID
-        
+
     Returns:
         Optional[User]: The user if found, None otherwise
     """
@@ -176,72 +176,72 @@ async def get_user_by_id(db: AsyncSession, user_id: str) -> Optional[User]:
 
 class AuthService:
     """Service for authentication and user management."""
-    
+
     def __init__(self, db: AsyncSession):
         """
         Initialize the auth service.
-        
+
         Args:
             db: Database session
         """
         self.db = db
-    
+
     async def authenticate(self, username_or_email: str, password: str) -> Optional[User]:
         """
         Authenticate a user.
-        
+
         Args:
             username_or_email: Username or email
             password: Password
-            
+
         Returns:
             Optional[User]: The user if authentication is successful, None otherwise
         """
         return await authenticate_user(self.db, username_or_email, password)
-    
+
     async def create_new_user(self, user_data: UserCreate) -> User:
         """
         Create a new user.
-        
+
         Args:
             user_data: User creation data
-            
+
         Returns:
             User: The created user
         """
         return await create_user(self.db, user_data)
-    
+
     async def get_by_username(self, username: str) -> Optional[User]:
         """
         Get a user by username.
-        
+
         Args:
             username: Username
-            
+
         Returns:
             Optional[User]: The user if found, None otherwise
         """
         return await get_user_by_username(self.db, username)
-    
+
     async def get_by_email(self, email: str) -> Optional[User]:
         """
         Get a user by email.
-        
+
         Args:
             email: Email
-            
+
         Returns:
             Optional[User]: The user if found, None otherwise
         """
         return await get_user_by_email(self.db, email)
-    
+
     async def get_by_id(self, user_id: str) -> Optional[User]:
         """
         Get a user by ID.
-        
+
         Args:
             user_id: User ID
-            
+
         Returns:
             Optional[User]: The user if found, None otherwise
         """

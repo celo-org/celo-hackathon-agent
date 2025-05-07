@@ -29,13 +29,13 @@ async def get_reports(
 ):
     """
     Get all reports for the current user.
-    
+
     Args:
         current_user: Current authenticated user
         report_service: Report service
         limit: Maximum number of reports to return
         offset: Number of reports to skip
-        
+
     Returns:
         ReportList: List of reports
     """
@@ -45,21 +45,18 @@ async def get_reports(
         limit=limit,
         offset=offset,
     )
-    
+
     # Count total reports using the report service's db session
-    total_query = (
-        select(Report)
-        .where(Report.user_id == current_user.id)
-    )
+    total_query = select(Report).where(Report.user_id == current_user.id)
     total_result = await report_service.db.execute(total_query)
     total = len(total_result.scalars().all())
-    
+
     # Convert to response schema
     report_summaries = []
     for report in reports:
         # Ensure scores is not None
         scores = report.scores if report.scores is not None else {"overall": 0}
-        
+
         report_summary = ReportSummary(
             task_id=str(report.id),  # Now using task_id instead of report_id
             github_url=report.github_url,
@@ -70,7 +67,7 @@ async def get_reports(
             scores=scores,
         )
         report_summaries.append(report_summary)
-    
+
     return {"reports": report_summaries, "total": total}
 
 
@@ -82,12 +79,12 @@ async def get_report(
 ):
     """
     Get a specific report.
-    
+
     Args:
         task_id: Task ID (same as report ID)
         current_user: Current authenticated user
         report_service: Report service
-        
+
     Returns:
         ReportDetail: Detailed report
     """
@@ -96,18 +93,18 @@ async def get_report(
         report_id=task_id,
         user_id=str(current_user.id),
     )
-    
+
     # Check if report exists
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Report not found",
         )
-    
+
     # Convert to response schema
     # Ensure scores is not None
     scores = report.scores if report.scores is not None else {"overall": 0}
-    
+
     return ReportDetail(
         task_id=str(report.id),  # Now using task_id instead of report_id
         github_url=report.github_url,
@@ -129,13 +126,13 @@ async def download_report(
 ):
     """
     Download a report as Markdown or JSON.
-    
+
     Args:
         task_id: Task ID (same as report ID)
         current_user: Current authenticated user
         report_service: Report service
         format: Output format (md or json)
-        
+
     Returns:
         Response: File download
     """
@@ -144,20 +141,20 @@ async def download_report(
         report_id=task_id,
         user_id=str(current_user.id),
     )
-    
+
     # Check if report exists
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Report not found",
         )
-    
+
     # Generate report content
     content, filename, content_type = await report_service.generate_report_content(
         report=report,
         format=format,
     )
-    
+
     return Response(
         content=content,
         media_type=content_type,
@@ -173,12 +170,12 @@ async def publish_report(
 ):
     """
     Publish a report to IPFS.
-    
+
     Args:
         task_id: Task ID (same as report ID)
         current_user: Current authenticated user
         report_service: Report service
-        
+
     Returns:
         ReportSummary: Published report summary
     """
@@ -187,19 +184,19 @@ async def publish_report(
         report_id=task_id,
         user_id=str(current_user.id),
     )
-    
+
     # Check if report exists
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Report not found",
         )
-    
+
     # Check if report has already been published
     if report.ipfs_hash:
         # Ensure scores is not None
         scores = report.scores if report.scores is not None else {"overall": 0}
-        
+
         return ReportSummary(
             task_id=str(report.id),  # Now using task_id instead of report_id
             github_url=report.github_url,
@@ -209,13 +206,13 @@ async def publish_report(
             published_at=report.published_at,
             scores=scores,
         )
-    
+
     # Publish to IPFS
     await report_service.publish_to_ipfs(report)
-    
+
     # Ensure scores is not None
     scores = report.scores if report.scores is not None else {"overall": 0}
-    
+
     return ReportSummary(
         task_id=str(report.id),  # Now using task_id instead of report_id
         github_url=report.github_url,
