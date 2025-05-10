@@ -1,0 +1,363 @@
+
+import React, { useState, useEffect } from "react";
+import { useParams, Link } from "react-router-dom";
+import { Layout } from "@/components/layout/Layout";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, Download } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { LoadingReport } from "@/components/report/LoadingReport";
+
+// Mock report data
+const reportData = {
+  "report-1": {
+    title: "Vision Model Analysis",
+    category: "Computer Vision",
+    date: "2025-04-22",
+    status: "Completed",
+    content: `
+# Vision Model Analysis
+## Executive Summary
+
+This report evaluates the performance of various vision models on standard benchmarks. Key findings include:
+
+- ResNet-50 achieves 76.5% accuracy on ImageNet
+- Vision Transformer (ViT) outperforms CNN architectures in most tasks
+- MobileNet variants show strong performance-efficiency tradeoff
+- EfficientNet remains the most parameter-efficient model class
+
+## Model Performance
+
+| Model | Accuracy | Parameters | FLOPs |
+| ----- | -------- | ---------- | ----- |
+| ResNet-50 | 76.5% | 25.6M | 4.1G |
+| ViT-B/16 | 84.2% | 86.0M | 17.6G |
+| MobileNetV3 | 75.8% | 5.4M | 0.58G |
+| EfficientNetB0 | 77.3% | 5.3M | 0.39G |
+
+## Analysis
+
+The Vision Transformer architecture shows remarkable performance on various computer vision tasks despite being directly adapted from NLP applications. Its attention mechanism allows it to capture long-range dependencies that CNNs struggle with.
+
+MobileNetV3 and EfficientNetB0 represent the current state of the art in efficient CNN architectures, with the latter being particularly well-optimized through neural architecture search.
+
+## Recommendations
+
+1. For mobile applications, use MobileNetV3 or EfficientNet-based architectures
+2. For cloud-based applications requiring high accuracy, use Vision Transformers
+3. For balanced applications, ResNet variants still provide good performance tradeoffs
+4. Consider distilled models for further efficiency improvements
+
+## Conclusion
+
+Vision models continue to improve in both accuracy and efficiency. Transformer-based approaches represent the current leading edge, while specialized efficiency-focused architectures offer compelling alternatives for resource-constrained environments.
+`
+  },
+  "report-2": {
+    title: "NLP Performance Report",
+    category: "Natural Language Processing",
+    date: "2025-04-20",
+    status: "Completed",
+    content: `
+# NLP Performance Report
+## Executive Summary
+
+This report evaluates the performance of various NLP models on standard benchmarks. Key findings include:
+
+- GPT-4 achieves state-of-the-art performance on most language tasks
+- Smaller models like MPT-7B show promising performance for their size
+- Specialized models outperform general models on domain-specific tasks
+- Instruction tuning significantly improves real-world applicability
+
+## Model Performance
+
+| Model | MMLU | HellaSwag | TruthfulQA | Parameters |
+| ----- | ---- | --------- | ---------- | ---------- |
+| GPT-4 | 86.4% | 95.3% | 59.2% | ~1.8T |
+| Claude 2 | 78.5% | 93.1% | 71.9% | Unknown |
+| Llama 2 70B | 68.9% | 87.1% | 41.6% | 70B |
+| MPT-7B | 31.2% | 76.5% | 38.9% | 7B |
+
+## Analysis
+
+Large language models continue to show impressive capabilities across a wide range of tasks. However, model size alone is not the only determining factor for performance. Architectural innovations, training methodology, and data quality all play significant roles.
+
+Instruction tuning and RLHF (Reinforcement Learning from Human Feedback) have proven to be crucial for aligning model outputs with human preferences and improving their usefulness in real-world applications.
+
+## Recommendations
+
+1. For general-purpose applications requiring high performance, use GPT-4 or Claude 2
+2. For local deployment with reasonable performance, consider Llama 2 or MPT models
+3. For specialized domains, fine-tuned smaller models often outperform larger general models
+4. Always evaluate models on domain-specific benchmarks rather than relying solely on general metrics
+
+## Conclusion
+
+The NLP landscape continues to evolve rapidly. While the largest models still hold advantages in general capabilities, the gap is narrowing as research advances. Domain-specific evaluation and customization remain essential for optimal real-world performance.
+`
+  },
+  "report-3": {
+    title: "Reinforcement Learning Benchmark",
+    category: "Reinforcement Learning",
+    date: "2025-04-18",
+    status: "In Progress",
+    content: `
+# Reinforcement Learning Benchmark
+## Executive Summary
+
+This interim report evaluates reinforcement learning algorithms on standard environments. Preliminary findings include:
+
+- PPO consistently outperforms older algorithms like DQN
+- Decision Transformer shows promising results with fewer environment interactions
+- Offline RL methods are becoming increasingly practical
+- Multi-agent RL remains challenging but shows progress
+
+[Note: This report is still in progress and results are preliminary]
+
+## Current Performance Results
+
+| Algorithm | CartPole | LunarLander | Atari Pong | Sample Efficiency |
+| --------- | -------- | ----------- | ---------- | ----------------- |
+| PPO | 500.0 | 280.5 | 20.1 | Medium |
+| SAC | 495.8 | 275.2 | 19.3 | High |
+| DQN | 475.3 | 220.1 | 18.5 | Low |
+| Decision Transformer | 485.2 | 265.8 | 19.7 | Very High |
+
+## Preliminary Analysis
+
+Modern policy optimization methods like PPO and SAC demonstrate strong performance across various environments. The emergence of transformer-based methods for RL is particularly notable, as they can leverage experience more efficiently.
+
+Offline RL methods that can learn from fixed datasets without environment interaction are showing increasing promise, especially in scenarios where exploration is costly or risky.
+
+## Next Steps
+
+1. Complete evaluations on more complex environments
+2. Add analysis of sample efficiency across algorithms
+3. Include multi-agent benchmarks
+4. Compare with human performance baselines
+
+## Expected Completion
+
+The final report is expected to be completed within 2 weeks and will include comprehensive recommendations based on full benchmark results.
+`
+  },
+  "report-4": {
+    title: "GPT-5 Model Evaluation",
+    category: "Large Language Models",
+    date: "2025-04-16",
+    status: "Completed",
+    content: `
+# GPT-5 Model Evaluation
+## Executive Summary
+
+This report evaluates the recently released GPT-5 model across various benchmarks and use cases. Key findings include:
+
+- GPT-5 sets new state-of-the-art results across almost all language benchmarks
+- Reasoning capabilities show significant improvements over GPT-4
+- Hallucination rates decreased by approximately 45% compared to previous models
+- Multi-modal capabilities substantially enhanced, especially for vision-language tasks
+
+## Performance Evaluation
+
+| Benchmark | GPT-4 | GPT-5 | Improvement |
+| --------- | ----- | ----- | ----------- |
+| MMLU | 86.4% | 92.1% | +5.7% |
+| GSM8K | 92.0% | 97.8% | +5.8% |
+| TruthfulQA | 59.2% | 78.5% | +19.3% |
+| MATH | 52.9% | 68.4% | +15.5% |
+| Multimodal POPE | 85.3% | 93.7% | +8.4% |
+
+## Capability Analysis
+
+GPT-5 demonstrates remarkable improvements in several key areas:
+
+### Reasoning
+The model shows substantially improved performance on complex reasoning tasks, including mathematical problem-solving, logical deduction, and strategic planning. Chain-of-thought reasoning appears more coherent and accurate.
+
+### Factuality
+Hallucination rates have decreased significantly, with the model more frequently expressing uncertainty rather than providing incorrect information. Citation capabilities have been enhanced.
+
+### Multimodal Understanding
+Vision-language integration is notably improved, with better understanding of complex visual scenes, diagrams, and charts. The model can reason effectively across modalities.
+
+## Limitations
+
+Despite improvements, some limitations persist:
+
+1. Knowledge cutoff still presents challenges for very recent events
+2. Extended reasoning beyond ~30 steps shows degradation
+3. Some cultural biases remain detectable in certain contexts
+4. Computational requirements have increased substantially
+
+## Recommendations
+
+1. GPT-5 is well-suited for complex reasoning tasks that challenged previous models
+2. For factual applications, the reduced hallucination rate makes it significantly more reliable
+3. Multimodal applications benefit substantially from the improved cross-modal reasoning
+4. Consider computational requirements when deploying at scale
+
+## Conclusion
+
+GPT-5 represents a significant advancement in language model capabilities, with particularly notable improvements in reasoning, factuality, and multimodal understanding. These improvements expand the range of reliable applications for large language models.
+`
+  },
+  // Additional reports would be defined here
+};
+
+const ReportDetail = () => {
+  const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [repoName, setRepoName] = useState("");
+  
+  // Check if the report exists in our mock data
+  const report = id && id in reportData ? reportData[id as keyof typeof reportData] : null;
+  
+  useEffect(() => {
+    // If the ID starts with "report-" and has a timestamp after it, assume it's a new report being processed
+    if (id && /^report-\d+$/.test(id) && !report) {
+      setIsLoading(true);
+      setRepoName(localStorage.getItem("lastAnalyzedRepo") || "Repository");
+      
+      // In a real app, we would have a polling mechanism here to check if the report is ready
+      // For now, we're just showing the loading state indefinitely
+    } else {
+      setIsLoading(false);
+    }
+  }, [id, report]);
+  
+  const handleDownload = () => {
+    setIsDownloading(true);
+    
+    // Simulate download
+    setTimeout(() => {
+      setIsDownloading(false);
+      toast({
+        title: "Report downloaded",
+        description: `${report?.title} has been downloaded as a markdown file.`
+      });
+    }, 1500);
+  };
+  
+  // If the report is still being generated, show the loading state
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="analyzer-container py-10">
+          <Breadcrumb className="mb-6">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/">Home</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link to="/reports">Reports</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink>Analysis in Progress</BreadcrumbLink>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          
+          <LoadingReport repoName={repoName} />
+        </div>
+      </Layout>
+    );
+  }
+  
+  if (!report) {
+    return (
+      <Layout>
+        <div className="analyzer-container py-10">
+          <h1 className="text-2xl font-bold mb-4">Report Not Found</h1>
+          <p className="mb-6">The report you requested does not exist or has been removed.</p>
+          <Button asChild>
+            <Link to="/reports">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Reports
+            </Link>
+          </Button>
+        </div>
+      </Layout>
+    );
+  }
+  
+  return (
+    <Layout>
+      <div className="analyzer-container py-10">
+        {/* Breadcrumbs */}
+        <Breadcrumb className="mb-6">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/">Home</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/reports">Reports</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink>{report.title}</BreadcrumbLink>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        
+        {/* Report Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">{report.title}</h1>
+            <div className="flex items-center gap-3 mt-2">
+              <Badge variant="outline">{report.category}</Badge>
+              <span className="text-sm text-muted-foreground">{report.date}</span>
+              <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                report.status === "Completed" ? "bg-green-500/10 text-green-600" : 
+                report.status === "In Progress" ? "bg-blue-500/10 text-blue-600" :
+                "bg-red-500/10 text-red-600"
+              }`}>
+                {report.status}
+              </span>
+            </div>
+          </div>
+          
+          <Button
+            onClick={handleDownload}
+            disabled={isDownloading || report.status !== "Completed"}
+            className="bg-white text-black hover:bg-white/90"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {isDownloading ? "Downloading..." : "Download Report"}
+          </Button>
+        </div>
+        
+        {/* Report Content */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Report Content</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="prose dark:prose-invert max-w-none">
+              {/* For simplicity, we'll render the markdown as pre-formatted text */}
+              {/* In a real app, use a markdown renderer like react-markdown */}
+              <pre className="whitespace-pre-wrap font-sans text-base">
+                {report.content}
+              </pre>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </Layout>
+  );
+};
+
+export default ReportDetail;

@@ -1,0 +1,79 @@
+
+
+body, #root {
+  margin: 0 auto;
+  font-family: 'Roboto', sans-serif;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+/* Button Styles */
+.bg-primary-button {
+  background-color: hsl(var(--primary));
+}
+
+/* Custom colors - maintain compatibility */
+.bg-custom-yellow {
+  background-color: hsl(var(--custom-yellow));
+}
+
+.bg-custom-green {
+  background-color: hsl(var(--custom-green));
+}
+
+.bg-custom-cream {
+  background-color: hsl(var(--custom-cream));
+}
+
+.bg-custom-light-gray {
+  background-color: hsl(var(--custom-light-gray));
+}
+
+.text-custom-green {
+  color: hsl(var(--custom-green));
+}
+
+/* Indeterminate checkbox styles */
+.checkbox-indeterminate {
+  position: relative;
+}
+
+.checkbox-indeterminate::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 2px;
+  background-color: currentColor;
+}
+
+/* Loading animation */
+@keyframes progress {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-progress {
+  animation: progress 30s ease-in-out forwards;
+}
+
