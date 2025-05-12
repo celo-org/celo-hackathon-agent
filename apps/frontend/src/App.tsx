@@ -11,6 +11,7 @@ import {
   Routes,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/auth-context";
+import { ThemeProvider } from "./context/theme-context";
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -44,26 +45,28 @@ const ProtectedRoute = () => {
 const App = () => (
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
+      <ThemeProvider defaultTheme="system">
+        <TooltipProvider>
+          <AuthProvider>
+            <BrowserRouter>
+              <Toaster />
+              <Sonner />
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
 
-              {/* Protected routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/reports/:id" element={<ReportDetail />} />
-              </Route>
+                {/* Protected routes */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/reports" element={<Reports />} />
+                  <Route path="/reports/:id" element={<ReportDetail />} />
+                </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </AuthProvider>
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );
