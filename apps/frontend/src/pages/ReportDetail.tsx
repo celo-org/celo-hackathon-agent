@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import axios from "axios";
+import { api } from "@/lib/api-client";
 import { ArrowLeft, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -269,10 +269,10 @@ const ReportDetail = () => {
   const pollReportStatus = async (taskId: string) => {
     try {
       // Try to get the report first
-      const reportResponse = await axios.get<ReportResponse>(
-        `${API_BASE_URL}/reports/${taskId}`
+      const reportResponse = await api.get<ReportResponse>(
+        `/reports/${taskId}`
       );
-      setApiReport(reportResponse.data);
+      setApiReport(reportResponse);
       setIsLoading(false);
 
       // Clear the polling interval if we got the report
@@ -283,13 +283,13 @@ const ReportDetail = () => {
     } catch (reportError) {
       // If report isn't ready, check the task status
       try {
-        const statusResponse = await axios.get<AnalysisStatusResponse>(
-          `${API_BASE_URL}/analysis/tasks/${taskId}`
+        const statusResponse = await api.get<AnalysisStatusResponse>(
+          `/analysis/tasks/${taskId}`
         );
-        setTaskStatus(statusResponse.data);
+        setTaskStatus(statusResponse);
 
         // If task failed, stop polling
-        if (statusResponse.data.status === "FAILED") {
+        if (statusResponse.status === "FAILED") {
           setIsLoading(false);
           if (pollingInterval) {
             clearInterval(pollingInterval);
@@ -298,7 +298,7 @@ const ReportDetail = () => {
 
           toast({
             title: "Analysis failed",
-            description: statusResponse.data.error_message || "Unknown error",
+            description: statusResponse.error_message || "Unknown error",
             variant: "destructive",
           });
         }
@@ -384,16 +384,22 @@ const ReportDetail = () => {
 
     try {
       if (apiReport) {
-        // Make a request to download the report
-        const response = await axios.get(
-          `${API_BASE_URL}/reports/${id}/download`,
-          {
-            responseType: "blob",
-          }
-        );
+        // For file downloads, we need to use the raw apiClient instead of our helper
+        // because we need the raw response with blob data
+        const response = await fetch(`${API_BASE_URL}/reports/${id}/download`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to download report");
+        }
+
+        const blob = await response.blob();
 
         // Create a download link
-        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
         link.setAttribute(

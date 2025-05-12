@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import axios from "axios";
+import { api } from "@/lib/api-client";
 import { GitBranch } from "lucide-react";
 import { KeyboardEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -36,7 +36,7 @@ export function RepositoryAnalyzer() {
 
     try {
       // Call the API to submit the repository for analysis
-      const response = await axios.post(`${API_BASE_URL}/analysis/submit`, {
+      const response = await api.post<{ task_id: string }>("/analysis/submit", {
         github_urls: [inputUrl],
         options: {
           analysis_type: analysisType,
@@ -44,7 +44,7 @@ export function RepositoryAnalyzer() {
       });
 
       // Get the task_id from the response and redirect
-      const taskId = response.data.task_id;
+      const taskId = response.task_id;
 
       // Store repo name for loading screen
       const repoName = inputUrl.split("/").slice(-1)[0] || "Repository";
