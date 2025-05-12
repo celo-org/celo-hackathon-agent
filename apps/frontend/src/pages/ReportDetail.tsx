@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api-client";
+import { formatFormalDate } from "@/lib/date-utils";
 import { ArrowLeft, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -589,7 +590,7 @@ const ReportDetail = () => {
               <div className="flex items-center gap-3 mt-2">
                 <Badge variant="outline">Repository Analysis</Badge>
                 <span className="text-sm text-muted-foreground">
-                  {new Date(apiReport.created_at).toLocaleDateString()}
+                  {formatFormalDate(apiReport.created_at)}
                 </span>
                 <span className="px-2 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-600">
                   Completed
@@ -662,7 +663,7 @@ const ReportDetail = () => {
               <div className="flex items-center gap-3 mt-2">
                 <Badge variant="outline">{mockReport.category}</Badge>
                 <span className="text-sm text-muted-foreground">
-                  {mockReport.date}
+                  {formatFormalDate(mockReport.date)}
                 </span>
                 <span className="px-2 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-600">
                   {mockReport.status}
@@ -727,7 +728,7 @@ const ReportDetail = () => {
               <div className="flex items-center gap-3 mt-2">
                 <Badge variant="outline">{mockDataReport.category}</Badge>
                 <span className="text-sm text-muted-foreground">
-                  {mockDataReport.date}
+                  {formatFormalDate(mockDataReport.date)}
                 </span>
                 <span
                   className={`px-2 py-1 rounded-md text-xs font-medium ${

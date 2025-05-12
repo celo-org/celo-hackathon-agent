@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api-client";
+import { formatRelativeTime } from "@/lib/date-utils";
 import { Download, Filter, Loader, Search } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -371,7 +372,7 @@ const Reports = () => {
                           )}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {new Date(report.created_at).toLocaleDateString()}
+                          {formatRelativeTime(report.created_at)}
                         </TableCell>
                         <TableCell>
                           <span

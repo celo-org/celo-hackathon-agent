@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatFormalDate } from "@/lib/date-utils";
 
 interface LoadingReportProps {
   repoName?: string;
@@ -25,7 +26,7 @@ export function LoadingReport({
           <div className="flex items-center gap-3 mt-2">
             <Badge variant="outline">Repository Analysis</Badge>
             <span className="text-sm text-muted-foreground">
-              {new Date().toISOString().split("T")[0]}
+              {formatFormalDate(new Date())}
             </span>
             <span className="px-2 py-1 rounded-md text-xs font-medium bg-blue-500/10 text-blue-600">
               In Progress

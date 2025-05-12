@@ -88,7 +88,6 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
     font-family: "Roboto", sans-serif;
-    background: hsl(0 0% 0%);
   }
 
   html {

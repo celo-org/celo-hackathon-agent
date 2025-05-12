@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/context/auth-context";
@@ -74,6 +75,11 @@ export function Navbar() {
                     Sign In
                   </Link>
                 )}
+
+                <div className="flex items-center mt-4">
+                  <span className="mr-2 text-sm">Theme:</span>
+                  <ThemeToggle />
+                </div>
               </div>
             </SheetContent>
           </Sheet>
@@ -92,6 +98,7 @@ export function Navbar() {
               Reports
             </Link>
 
+            <ThemeToggle />
             <UserProfileDropdown />
           </nav>
         )}
