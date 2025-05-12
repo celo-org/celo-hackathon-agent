@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, analysis, reports, health
+from app.routers import auth, analysis, reports, health, github
 from app.db.session import create_db_and_tables
 
 
@@ -59,10 +59,21 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
-app.include_router(analysis.router, prefix=f"{settings.API_V1_STR}/analysis", tags=["Analysis"])
-app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["Reports"])
-app.include_router(health.router, prefix=f"{settings.API_V1_STR}/health", tags=["Health"])
+app.include_router(
+    auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"]
+)
+app.include_router(
+    analysis.router, prefix=f"{settings.API_V1_STR}/analysis", tags=["Analysis"]
+)
+app.include_router(
+    reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["Reports"]
+)
+app.include_router(
+    health.router, prefix=f"{settings.API_V1_STR}/health", tags=["Health"]
+)
+app.include_router(
+    github.router, prefix=f"{settings.API_V1_STR}/github", tags=["GitHub"]
+)
 
 
 @app.get("/", tags=["Root"])
