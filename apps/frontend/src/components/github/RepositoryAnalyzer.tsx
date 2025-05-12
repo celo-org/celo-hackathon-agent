@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import axios from "axios";
 import { GitBranch } from "lucide-react";
 import { KeyboardEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,21 +34,45 @@ export function RepositoryAnalyzer() {
 
     setIsLoading(true);
 
-    // Mock API call to get a queueId
-    setTimeout(() => {
-      // Generate a mock queueId (e.g., report-<timestamp>)
-      const queueId = `report-${Date.now()}`;
+    try {
+      // Call the API to submit the repository for analysis
+      const response = await axios.post(`${API_BASE_URL}/analysis/submit`, {
+        github_urls: [inputUrl],
+        options: {
+          analysis_type: analysisType,
+        },
+      });
+
+      // Get the task_id from the response and redirect
+      const taskId = response.data.task_id;
+
       // Store repo name for loading screen
+      const repoName = inputUrl.split("/").slice(-1)[0] || "Repository";
+      localStorage.setItem("lastAnalyzedRepo", repoName);
+
+      toast.success("Starting analysis of repository", {
+        description: "Processing repository...",
+      });
+
+      // Redirect to the report detail page with the task_id
+      navigate(`/reports/${taskId}`);
+    } catch (error) {
+      console.error("Error submitting repository for analysis:", error);
+      toast.error("Failed to submit repository for analysis", {
+        description:
+          "Please try again or contact support if the issue persists.",
+      });
+
+      // Fallback to mock behavior if the API call fails
+      const queueId = `report-${Date.now()}`;
       localStorage.setItem(
         "lastAnalyzedRepo",
         inputUrl.split("/").slice(-1)[0] || "Repository"
       );
-      toast.success("Starting analysis of repository", {
-        description: "Processing repository...",
-      });
       navigate(`/reports/${queueId}`);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {

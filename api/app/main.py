@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, analysis, reports, health, github
+from app.routers import auth, analysis, reports, health
 from app.db.session import create_db_and_tables
 
 
@@ -70,9 +70,6 @@ app.include_router(
 )
 app.include_router(
     health.router, prefix=f"{settings.API_V1_STR}/health", tags=["Health"]
-)
-app.include_router(
-    github.router, prefix=f"{settings.API_V1_STR}/github", tags=["GitHub"]
 )
 
 
