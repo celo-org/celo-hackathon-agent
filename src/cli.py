@@ -54,6 +54,12 @@ def analyze(
         max=1.0,
         help="Temperature for generation (0.0-1.0, lower is more deterministic)",
     ),
+    analysis_type: str = typer.Option(
+        "fast",
+        "--analysis-type",
+        "-a",
+        help="Analysis type: 'fast' (uses Gemini Flash) or 'deep' (uses Gemini Pro)",
+    ),
     json_output: bool = typer.Option(
         False, "--json", "-j", help="Output analysis in JSON format instead of Markdown"
     ),
@@ -75,12 +81,23 @@ def analyze(
         )
         raise typer.Exit(code=1)
 
+    # Override model based on analysis type
+    if analysis_type == "fast":
+        model = "gemini-2.5-flash-preview-04-17"
+    elif analysis_type == "deep":
+        model = "gemini-2.5-pro-preview-03-25"
+    else:
+        rich_print(
+            f"[bold yellow]Warning:[/bold yellow] Unknown analysis type '{analysis_type}', using specified model."
+        )
+
     # Parse GitHub URLs
     urls = [url.strip() for url in github_urls.split(",")]
 
     # Display analysis details
     rich_print("[bold]AI Project Analyzer[/bold]")
     rich_print(f"Model: [cyan]{model}[/cyan] (Temperature: {temperature})")
+    rich_print(f"Analysis type: [cyan]{analysis_type}[/cyan]")
     rich_print(f"Output format: [cyan]{'JSON' if json_output else 'Markdown'}[/cyan]")
     rich_print(f"Repositories to analyze: [cyan]{len(urls)}[/cyan]")
 

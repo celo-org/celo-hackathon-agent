@@ -12,9 +12,12 @@ class AnalysisOptions(BaseModel):
 
     prompt: Optional[str] = "default"  # Use default prompt if not specified
     model: Optional[str] = None  # Use default model from settings if not specified
-    temperature: Optional[float] = None  # Use default temperature from settings if not specified
+    temperature: Optional[float] = (
+        None  # Use default temperature from settings if not specified
+    )
     include_metrics: Optional[bool] = True
     output_format: Optional[str] = "markdown"  # markdown or json
+    analysis_type: Optional[str] = "fast"  # fast or deep
 
 
 class AnalysisCreate(BaseModel):
