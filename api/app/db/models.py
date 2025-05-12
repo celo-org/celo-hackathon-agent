@@ -4,7 +4,16 @@ Database models for the API server.
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, ForeignKey, Boolean, Integer, DateTime, Text, JSON
+from sqlalchemy import (
+    Column,
+    String,
+    ForeignKey,
+    Boolean,
+    Integer,
+    DateTime,
+    Text,
+    JSON,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -31,9 +40,15 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    tasks = relationship("AnalysisTask", back_populates="user", cascade="all, delete-orphan")
-    reports = relationship("Report", back_populates="user", cascade="all, delete-orphan")
-    api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
+    tasks = relationship(
+        "AnalysisTask", back_populates="user", cascade="all, delete-orphan"
+    )
+    reports = relationship(
+        "Report", back_populates="user", cascade="all, delete-orphan"
+    )
+    api_keys = relationship(
+        "ApiKey", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class AnalysisTask(Base):
@@ -55,8 +70,13 @@ class AnalysisTask(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
-    worker_id = Column(String(100), nullable=True)  # ID of the worker processing this task
-    priority = Column(Integer, default=0)  # Priority of the task (higher number = higher priority)
+    worker_id = Column(
+        String(100), nullable=True
+    )  # ID of the worker processing this task
+    priority = Column(
+        Integer, default=0
+    )  # Priority of the task (higher number = higher priority)
+    analysis_type = Column(String(10), default="fast")  # fast or deep analysis type
 
     # Relationships
     user = relationship("User", back_populates="tasks")
@@ -72,7 +92,10 @@ class Report(Base):
 
     id = Column(UUID, primary_key=True, default=generate_uuid, index=True)
     task_id = Column(
-        UUID, ForeignKey("analysis_tasks.id", ondelete="CASCADE"), nullable=False, unique=True
+        UUID,
+        ForeignKey("analysis_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
     user_id = Column(UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     github_url = Column(Text, nullable=False)
@@ -82,6 +105,7 @@ class Report(Base):
     ipfs_hash = Column(Text, nullable=True)  # IPFS Content ID where report is stored
     created_at = Column(DateTime, default=datetime.utcnow)
     published_at = Column(DateTime, nullable=True)  # When report was published to IPFS
+    analysis_type = Column(String(10), default="fast")  # fast or deep analysis type
 
     # Relationships
     user = relationship("User", back_populates="reports")

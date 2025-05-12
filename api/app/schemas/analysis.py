@@ -37,6 +37,7 @@ class AnalysisStatus(BaseModel):
     submitted_at: datetime
     error_message: Optional[str] = None
     completed_at: Optional[datetime] = None
+    analysis_type: Optional[str] = "fast"  # fast or deep analysis type
 
     class Config:
         from_attributes = True

@@ -92,6 +92,10 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
 
         logger.info(f"Using model {model} for {analysis_type} analysis")
 
+        # Update the task's analysis_type field
+        task.analysis_type = analysis_type
+        db.commit()
+
         # Set the correct path to the prompt file
         # If prompt is just a name, assume it's in the prompts directory
         prompt_option = options.get("prompt", "default")
@@ -165,6 +169,7 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
                 "markdown": analysis_text
             },  # Store as a JSON with markdown key for compatibility
             scores=scores,
+            analysis_type=analysis_type,  # Store analysis type in report
         )
 
         db.add(report)
