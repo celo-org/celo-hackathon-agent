@@ -2,11 +2,14 @@
 Reports router for the API.
 """
 
+import io
 import logging
+import zipfile
 from typing import Annotated, List
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from pydantic import BaseModel
 
 from app.config import settings
 from app.db.session import get_db_session
@@ -18,6 +21,12 @@ from app.services.report import ReportService, get_report_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class BatchDownloadRequest(BaseModel):
+    """Request body for batch downloading reports."""
+
+    task_ids: List[str]
 
 
 @router.get("", response_model=ReportList)
@@ -193,6 +202,92 @@ async def download_report(
         content=content,
         media_type=content_type,
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post("/download-batch")
+async def download_reports_batch(
+    batch_request: BatchDownloadRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    report_service: ReportService = Depends(get_report_service),
+    format: str = "md",
+):
+    """
+    Download multiple reports as a ZIP file.
+
+    Args:
+        batch_request: List of task IDs to download
+        current_user: Current authenticated user
+        report_service: Report service
+        format: Output format for reports (md or json)
+
+    Returns:
+        Response: ZIP file download containing all requested reports
+    """
+    if not batch_request.task_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No task IDs provided",
+        )
+
+    # Limit the number of reports to download at once
+    if len(batch_request.task_ids) > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many reports requested. Maximum is 50.",
+        )
+
+    # Create ZIP file in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        # Process each report
+        for task_id in batch_request.task_ids:
+            try:
+                # Get report
+                report = await report_service.get_report(
+                    report_id=task_id,
+                    user_id=str(current_user.id),
+                )
+
+                if not report:
+                    logger.warning(f"Report {task_id} not found, skipping")
+                    continue
+
+                # Generate report content
+                content, filename, _ = await report_service.generate_report_content(
+                    report=report,
+                    format=format,
+                )
+
+                # Add to ZIP
+                zip_file.writestr(filename, content)
+
+            except Exception as e:
+                logger.error(f"Error processing report {task_id}: {str(e)}")
+                # Continue with other reports even if one fails
+                continue
+
+    # Get ZIP data
+    zip_buffer.seek(0)
+    zip_data = zip_buffer.read()
+
+    # Check if we added any files
+    if len(zip_data) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No valid reports found for the requested IDs",
+        )
+
+    # Return ZIP file
+    timestamp = str(current_user.id).split("-")[
+        0
+    ]  # Use part of user ID as unique identifier
+    return Response(
+        content=zip_data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=reports-{timestamp}.zip"
+        },
     )
 
 
