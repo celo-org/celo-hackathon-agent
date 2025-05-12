@@ -30,7 +30,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api-client";
 import { formatFormalDate } from "@/lib/date-utils";
-import { Loader, Search, Trash2 } from "lucide-react";
+import axios from "axios";
+import { Download, Loader, Search, Trash2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -78,6 +79,8 @@ const Reports = () => {
   const [error, setError] = useState<string | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<AnalysisTask | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Fetch analysis tasks from API
   const fetchTasks = async () => {
@@ -106,6 +109,14 @@ const Reports = () => {
   const filteredTasks = tasks.filter((task) => {
     return task.github_url.toLowerCase().includes(search.toLowerCase());
   });
+
+  // Get completed tasks from selected tasks
+  const getSelectedCompletedTasks = () => {
+    return tasks.filter(
+      (task) =>
+        selectedTasks.includes(task.task_id) && task.status === "completed"
+    );
+  };
 
   const handleSelectAllChange = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -155,9 +166,7 @@ const Reports = () => {
         try {
           // Use proper DELETE endpoint for reports
           await api.delete(`/reports/${taskToDelete.task_id}`);
-          console.log("Report deleted successfully");
         } catch (err: unknown) {
-          console.error("Error deleting report:", err);
           // If report not found (404) or method not allowed (405), we can continue with task deletion
           if (
             err &&
@@ -185,17 +194,9 @@ const Reports = () => {
       try {
         // First try using the cancel endpoint which is actually implemented
         await api.delete(`/analysis/tasks/${taskToDelete.task_id}/cancel`);
-        console.log("Analysis task canceled successfully");
       } catch (err: unknown) {
-        console.error("Error canceling task:", err);
         // If the cancel endpoint fails, try the delete endpoint as fallback
-        try {
-          await api.delete(`/analysis/tasks/${taskToDelete.task_id}`);
-          console.log("Analysis task deleted successfully");
-        } catch (innerErr: unknown) {
-          console.error("Error deleting task:", innerErr);
-          throw innerErr; // Re-throw to be caught by the outer catch
-        }
+        await api.delete(`/analysis/tasks/${taskToDelete.task_id}`);
       }
 
       // Remove the task from the state
@@ -222,6 +223,242 @@ const Reports = () => {
 
   const cancelDeleteTask = () => {
     setTaskToDelete(null);
+  };
+
+  // Download a single report
+  const handleDownloadReport = async (taskId: string) => {
+    try {
+      // Use axios directly to get the raw blob data
+      const response = await axios.get(
+        `${API_BASE_URL}/reports/${taskId}/download`,
+        {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+        }
+      );
+
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data], {
+        type: response.headers["content-type"] || "text/markdown",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      // Try to get filename from Content-Disposition header
+      const contentDisposition = response.headers["content-disposition"];
+      let filename = `report-${taskId}.md`;
+
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=([^;]+)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/"/g, "");
+        }
+      }
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Download started",
+        description: "The report has been downloaded.",
+      });
+    } catch (err) {
+      console.error("Error downloading report:", err);
+      toast({
+        title: "Error",
+        description: "Failed to download the report. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle bulk download of selected reports
+  const handleBulkDownload = async () => {
+    const completedTasks = getSelectedCompletedTasks();
+
+    if (completedTasks.length === 0) {
+      toast({
+        title: "No completed tasks selected",
+        description: "Please select at least one completed task to download.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If only one task is selected, download it directly
+    if (completedTasks.length === 1) {
+      handleDownloadReport(completedTasks[0].task_id);
+      return;
+    }
+
+    try {
+      // Extract the task IDs for the bulk download request
+      const taskIds = completedTasks.map((task) => task.task_id);
+
+      // Make a request to the bulk download endpoint using axios
+      const response = await axios.post(
+        `${API_BASE_URL}/reports/download-batch`,
+        { task_ids: taskIds },
+        {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data], {
+        type: response.headers["content-type"] || "application/zip",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+
+      // Try to get filename from Content-Disposition header
+      const contentDisposition = response.headers["content-disposition"];
+      let filename = `reports-batch-${new Date()
+        .toISOString()
+        .slice(0, 10)}.zip`;
+
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=([^;]+)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/"/g, "");
+        }
+      }
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Download complete",
+        description: `${taskIds.length} reports have been downloaded as a zip file.`,
+      });
+    } catch (err) {
+      console.error("Error in bulk download:", err);
+
+      // Fallback: download reports individually if bulk endpoint fails or doesn't exist
+      toast({
+        title: "Bulk download failed",
+        description: "Downloading reports individually instead...",
+      });
+
+      // Download files one by one with slight delay
+      completedTasks.forEach((task, index) => {
+        setTimeout(() => {
+          handleDownloadReport(task.task_id);
+        }, index * 300);
+      });
+    }
+  };
+
+  // Handle bulk deletion of selected reports
+  const confirmBulkDelete = async () => {
+    const selectedCompletedTasks = getSelectedCompletedTasks();
+
+    if (selectedCompletedTasks.length === 0) {
+      toast({
+        title: "No completed tasks selected",
+        description: "Please select at least one completed task to delete.",
+        variant: "destructive",
+      });
+      setBulkDeleteConfirm(false);
+      return;
+    }
+
+    setIsBulkDeleting(true);
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      // Process each task sequentially
+      for (const task of selectedCompletedTasks) {
+        try {
+          // Delete report first
+          try {
+            await api.delete(`/reports/${task.task_id}`);
+          } catch (err: unknown) {
+            // Continue if error is 404 or 405
+            if (
+              err &&
+              typeof err === "object" &&
+              "response" in err &&
+              err.response &&
+              typeof err.response === "object" &&
+              "status" in err.response &&
+              typeof err.response.status === "number" &&
+              ![404, 405].includes(err.response.status)
+            ) {
+              throw err; // Re-throw non-404/405 errors
+            }
+          }
+
+          // Then delete task
+          try {
+            await api.delete(`/analysis/tasks/${task.task_id}/cancel`);
+          } catch (err) {
+            // Try fallback
+            await api.delete(`/analysis/tasks/${task.task_id}`);
+          }
+
+          successCount++;
+        } catch (err) {
+          console.error(`Error deleting task ${task.task_id}:`, err);
+          failCount++;
+        }
+      }
+
+      // Update UI
+      if (successCount > 0) {
+        // Remove deleted tasks from state
+        const deletedTaskIds = selectedCompletedTasks
+          .filter((_, index) => index < successCount)
+          .map((task) => task.task_id);
+
+        setTasks((prev) =>
+          prev.filter((t) => !deletedTaskIds.includes(t.task_id))
+        );
+        setSelectedTasks((prev) =>
+          prev.filter((id) => !deletedTaskIds.includes(id))
+        );
+      }
+
+      // Show toast with results
+      if (failCount === 0) {
+        toast({
+          title: "Tasks deleted",
+          description: `Successfully deleted ${successCount} tasks.`,
+        });
+      } else {
+        toast({
+          title: "Partial success",
+          description: `Deleted ${successCount} tasks, but failed to delete ${failCount} tasks.`,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Error in bulk delete process:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete the selected tasks. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkDeleting(false);
+      setBulkDeleteConfirm(false);
+    }
   };
 
   // Render loading state
@@ -286,14 +523,38 @@ const Reports = () => {
     );
   }
 
+  const selectedCompletedTasks = getSelectedCompletedTasks();
+
   return (
     <Layout>
       <div className="analyzer-container py-10">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <h1 className="text-3xl font-bold">Analysis Tasks</h1>
-          <Button asChild variant="default">
-            <Link to="/">Analyze New Repository</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {selectedTasks.length > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleBulkDownload}
+                  disabled={selectedCompletedTasks.length === 0}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Selected ({selectedCompletedTasks.length})
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setBulkDeleteConfirm(true)}
+                  disabled={selectedCompletedTasks.length === 0}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedCompletedTasks.length})
+                </Button>
+              </>
+            )}
+            <Button asChild variant="default">
+              <Link to="/">Analyze New Repository</Link>
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -333,7 +594,6 @@ const Reports = () => {
                   <TableHead>Status</TableHead>
                   <TableHead>Progress</TableHead>
                   <TableHead>Submitted Date</TableHead>
-                  <TableHead>Completed Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -357,12 +617,14 @@ const Reports = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">
-                          {getRepoName(task.github_url)}
-                        </div>
-                        <div className="text-sm text-muted-foreground truncate max-w-[250px]">
-                          {task.github_url}
-                        </div>
+                        <Link to={`/reports/${task.task_id}`}>
+                          <div className="font-medium">
+                            {getRepoName(task.github_url)}
+                          </div>
+                          <div className="text-sm text-muted-foreground truncate max-w-[250px]">
+                            {task.github_url}
+                          </div>
+                        </Link>
                       </TableCell>
                       <TableCell>
                         <Badge className={statusColor}>{formattedStatus}</Badge>
@@ -383,19 +645,27 @@ const Reports = () => {
                           ? formatFormalDate(new Date(task.submitted_at))
                           : "-"}
                       </TableCell>
-                      <TableCell>
-                        {task.completed_at
-                          ? formatFormalDate(new Date(task.completed_at))
-                          : "-"}
-                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           {isCompleted ? (
-                            <Button variant="outline" size="sm" asChild>
-                              <Link to={`/reports/${task.task_id}`}>
-                                View Report
-                              </Link>
-                            </Button>
+                            <>
+                              <Button variant="outline" size="sm" asChild>
+                                <Link to={`/reports/${task.task_id}`}>
+                                  View Report
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50"
+                                onClick={() =>
+                                  handleDownloadReport(task.task_id)
+                                }
+                              >
+                                <Download className="h-4 w-4" />
+                                <span className="sr-only">Download</span>
+                              </Button>
+                            </>
                           ) : (
                             <Button variant="outline" size="sm" disabled>
                               View Report
@@ -448,6 +718,38 @@ const Reports = () => {
               className="bg-red-500 hover:bg-red-600"
             >
               {isDeleting ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Tasks</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete {selectedCompletedTasks.length} analysis tasks
+              and their associated reports. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDelete}
+              disabled={isBulkDeleting}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isBulkDeleting ? (
                 <>
                   <Loader className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
