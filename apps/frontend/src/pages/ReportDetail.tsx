@@ -32,6 +32,7 @@ interface ReportResponse {
   published_at?: string;
   scores: Record<string, number>;
   content?: string | { markdown: string; [key: string]: unknown };
+  analysis_type?: string;
 }
 
 interface AnalysisStatusResponse {
@@ -42,6 +43,7 @@ interface AnalysisStatusResponse {
   submitted_at: string;
   error_message?: string;
   completed_at?: string;
+  analysis_type?: string;
 }
 
 // Mock report data for fallback

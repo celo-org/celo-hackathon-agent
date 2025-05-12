@@ -52,6 +52,9 @@ class AnalysisService:
         if "temperature" not in options:
             options["temperature"] = float(settings.TEMPERATURE)
 
+        # Get or set analysis_type
+        analysis_type = options.get("analysis_type", "fast")
+
         # Create the task
         task = AnalysisTask(
             user_id=user_id,
@@ -59,6 +62,7 @@ class AnalysisService:
             status="pending",
             options=options,
             progress=0,
+            analysis_type=analysis_type,
         )
 
         # Add to database

@@ -80,6 +80,7 @@ async def submit_analysis(
         "submitted_at": task.created_at,
         "error_message": task.error_message,
         "completed_at": task.completed_at,
+        "analysis_type": task.analysis_type or options.get("analysis_type", "fast"),
     }
 
 
@@ -126,6 +127,7 @@ async def get_analysis_tasks(
                 "submitted_at": task.created_at,
                 "error_message": task.error_message,
                 "completed_at": task.completed_at,
+                "analysis_type": task.analysis_type or "fast",
             }
         )
 
@@ -171,6 +173,7 @@ async def get_analysis_task(
         "submitted_at": task.created_at,
         "error_message": task.error_message,
         "completed_at": task.completed_at,
+        "analysis_type": task.analysis_type or "fast",
     }
 
 
@@ -213,6 +216,7 @@ async def cancel_analysis_task(
         "submitted_at": task.created_at,
         "error_message": task.error_message,
         "completed_at": task.completed_at,
+        "analysis_type": task.analysis_type or "fast",
     }
 
 
