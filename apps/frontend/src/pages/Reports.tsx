@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import axios from "axios";
+import { api } from "@/lib/api-client";
 import { Download, Filter, Loader, Search } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -142,10 +142,8 @@ const Reports = () => {
       setError(null);
 
       try {
-        const response = await axios.get<ReportsListResponse>(
-          `${API_BASE_URL}/reports`
-        );
-        setReports(response.data.reports || []);
+        const response = await api.get<ReportsListResponse>("/reports");
+        setReports(response.reports || []);
       } catch (err) {
         console.error("Error fetching reports:", err);
         setError("Failed to load reports. Please try again later.");
