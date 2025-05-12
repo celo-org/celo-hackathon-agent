@@ -117,6 +117,40 @@ async def get_report(
     )
 
 
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_report(
+    task_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    report_service: ReportService = Depends(get_report_service),
+):
+    """
+    Delete a report.
+
+    Args:
+        task_id: Task ID (same as report ID)
+        current_user: Current authenticated user
+        report_service: Report service
+
+    Returns:
+        None: Returns 204 No Content on success
+    """
+    # Delete report
+    success = await report_service.delete_report(
+        report_id=task_id,
+        user_id=str(current_user.id),
+    )
+
+    # Check if report exists and was deleted
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found",
+        )
+
+    # Return no content
+    return None
+
+
 @router.get("/{task_id}/download")
 async def download_report(
     task_id: str,

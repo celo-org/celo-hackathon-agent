@@ -153,15 +153,50 @@ const Reports = () => {
       // If the task is completed, delete the report first
       if (taskToDelete.status === "completed") {
         try {
+          // Use proper DELETE endpoint for reports
           await api.delete(`/reports/${taskToDelete.task_id}`);
-        } catch (err) {
+          console.log("Report deleted successfully");
+        } catch (err: unknown) {
           console.error("Error deleting report:", err);
-          // Continue with task deletion even if report deletion fails
+          // If report not found (404) or method not allowed (405), we can continue with task deletion
+          if (
+            err &&
+            typeof err === "object" &&
+            "response" in err &&
+            err.response &&
+            typeof err.response === "object" &&
+            "status" in err.response &&
+            typeof err.response.status === "number" &&
+            ![404, 405].includes(err.response.status)
+          ) {
+            toast({
+              title: "Error",
+              description: "Failed to delete the report. Please try again.",
+              variant: "destructive",
+            });
+            setIsDeleting(false);
+            setTaskToDelete(null);
+            return;
+          }
         }
       }
 
-      // Delete the analysis task
-      await api.delete(`/analysis/tasks/${taskToDelete.task_id}`);
+      // Delete the analysis task using the proper cancel endpoint
+      try {
+        // First try using the cancel endpoint which is actually implemented
+        await api.delete(`/analysis/tasks/${taskToDelete.task_id}/cancel`);
+        console.log("Analysis task canceled successfully");
+      } catch (err: unknown) {
+        console.error("Error canceling task:", err);
+        // If the cancel endpoint fails, try the delete endpoint as fallback
+        try {
+          await api.delete(`/analysis/tasks/${taskToDelete.task_id}`);
+          console.log("Analysis task deleted successfully");
+        } catch (innerErr: unknown) {
+          console.error("Error deleting task:", innerErr);
+          throw innerErr; // Re-throw to be caught by the outer catch
+        }
+      }
 
       // Remove the task from the state
       setTasks((prev) =>
@@ -173,7 +208,7 @@ const Reports = () => {
         description: "The analysis task has been deleted successfully.",
       });
     } catch (err) {
-      console.error("Error deleting task:", err);
+      console.error("Error in delete process:", err);
       toast({
         title: "Error",
         description: "Failed to delete the task. Please try again.",
