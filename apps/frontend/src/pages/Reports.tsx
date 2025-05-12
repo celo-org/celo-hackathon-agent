@@ -1,4 +1,14 @@
 import { Layout } from "@/components/layout/Layout";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,13 +20,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -27,7 +30,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api-client";
 import { formatFormalDate } from "@/lib/date-utils";
-import { Download, Filter, Loader, Search } from "lucide-react";
+import { Loader, Search, Trash2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -36,88 +39,27 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 // API response interface
-interface ReportSummary {
+interface AnalysisTask {
   task_id: string;
   github_url: string;
-  repo_name: string;
-  created_at: string;
-  ipfs_hash?: string;
-  published_at?: string;
-  scores: Record<string, number>;
+  status: string;
+  progress: number;
+  submitted_at: string;
+  error_message?: string;
+  completed_at?: string;
 }
 
-interface ReportsListResponse {
-  reports: ReportSummary[];
+interface AnalysisTaskListResponse {
+  tasks: AnalysisTask[];
   total: number;
 }
 
-// Mock data for fallback
-const MOCK_REPORTS = [
-  {
-    id: "report-1",
-    title: "Vision Model Analysis",
-    category: "Computer Vision",
-    date: "2025-04-22",
-    status: "Completed",
-  },
-  {
-    id: "report-2",
-    title: "NLP Performance Report",
-    category: "Natural Language Processing",
-    date: "2025-04-20",
-    status: "Completed",
-  },
-  {
-    id: "report-3",
-    title: "Reinforcement Learning Benchmark",
-    category: "Reinforcement Learning",
-    date: "2025-04-18",
-    status: "In Progress",
-  },
-  {
-    id: "report-4",
-    title: "GPT-5 Model Evaluation",
-    category: "Large Language Models",
-    date: "2025-04-16",
-    status: "Completed",
-  },
-  {
-    id: "report-5",
-    title: "Image Generation Quality Assessment",
-    category: "Generative AI",
-    date: "2025-04-15",
-    status: "Completed",
-  },
-  {
-    id: "report-6",
-    title: "Speech Recognition Analysis",
-    category: "Speech Processing",
-    date: "2025-04-12",
-    status: "In Progress",
-  },
-  {
-    id: "report-7",
-    title: "Transformer Architecture Analysis",
-    category: "Large Language Models",
-    date: "2025-04-10",
-    status: "Completed",
-  },
-  {
-    id: "report-8",
-    title: "Recommendation Engine Performance",
-    category: "Recommender Systems",
-    date: "2025-04-05",
-    status: "Failed",
-  },
-];
-
-const CATEGORIES = ["All Categories", "Repository Analysis"];
-
+// Status mapping constants
 const STATUS_MAPPING: Record<string, string> = {
-  COMPLETED: "Completed",
-  PROCESSING: "In Progress",
-  FAILED: "Failed",
-  PENDING: "Pending",
+  completed: "Completed",
+  in_progress: "In Progress",
+  pending: "Pending",
+  failed: "Failed",
 };
 
 const STATUS_COLORS = {
@@ -130,96 +72,121 @@ const STATUS_COLORS = {
 const Reports = () => {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All Categories");
-  const [selectedReports, setSelectedReports] = useState<string[]>([]);
-  const [reports, setReports] = useState<ReportSummary[]>([]);
+  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
+  const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<AnalysisTask | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Fetch reports from API
+  // Fetch analysis tasks from API
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await api.get<AnalysisTaskListResponse>(
+        "/analysis/tasks"
+      );
+      setTasks(response.tasks || []);
+    } catch (err) {
+      console.error("Error fetching analysis tasks:", err);
+      setError("Failed to load analysis tasks. Please try again later.");
+      setTasks([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchReports = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await api.get<ReportsListResponse>("/reports");
-        setReports(response.reports || []);
-      } catch (err) {
-        console.error("Error fetching reports:", err);
-        setError("Failed to load reports. Please try again later.");
-        // Fall back to mock data
-        setReports(
-          MOCK_REPORTS.map((report) => ({
-            task_id: report.id,
-            github_url: `https://github.com/example/${report.title
-              .toLowerCase()
-              .replace(/\s+/g, "-")}`,
-            repo_name: report.title,
-            created_at: new Date(report.date).toISOString(),
-            scores: { overall: Math.floor(Math.random() * 10) + 1 },
-          }))
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchReports();
+    fetchTasks();
   }, []);
 
-  // Filter reports based on search and category
-  const filteredReports = reports.filter((report) => {
-    const matchesSearch = report.repo_name
-      .toLowerCase()
-      .includes(search.toLowerCase());
-    // For now, simple filtering as we only have one category
-    const matchesCategory = category === "All Categories";
-    return matchesSearch && matchesCategory;
+  // Filter tasks based on search
+  const filteredTasks = tasks.filter((task) => {
+    return task.github_url.toLowerCase().includes(search.toLowerCase());
   });
 
   const handleSelectAllChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (event.target.checked) {
-      setSelectedReports(filteredReports.map((report) => report.task_id));
+      setSelectedTasks(filteredTasks.map((task) => task.task_id));
     } else {
-      setSelectedReports([]);
+      setSelectedTasks([]);
     }
   };
 
-  const handleReportSelection = (reportId: string) => {
-    setSelectedReports((prev) =>
-      prev.includes(reportId)
-        ? prev.filter((id) => id !== reportId)
-        : [...prev, reportId]
+  const handleTaskSelection = (taskId: string) => {
+    setSelectedTasks((prev) =>
+      prev.includes(taskId)
+        ? prev.filter((id) => id !== taskId)
+        : [...prev, taskId]
     );
   };
 
-  // Handle downloading reports
-  const handleDownloadSelected = async () => {
-    if (selectedReports.length === 0) {
-      toast({
-        title: "No reports selected",
-        description: "Please select at least one report to download.",
-        variant: "destructive",
-      });
-      return;
+  // Extract repository name from GitHub URL
+  const getRepoName = (githubUrl: string) => {
+    try {
+      const url = new URL(githubUrl);
+      const pathParts = url.pathname.split("/").filter(Boolean);
+      if (pathParts.length >= 2) {
+        return `${pathParts[0]}/${pathParts[1]}`;
+      }
+      return githubUrl;
+    } catch (e) {
+      return githubUrl;
     }
-
-    // In a real implementation, we would batch download the reports
-    // For now, just show a toast
-    toast({
-      title: "Download started",
-      description: `${selectedReports.length} report(s) will be downloaded as a ZIP file.`,
-    });
   };
 
-  // Calculate report status based on task status
-  const getReportStatus = (report: ReportSummary) => {
-    // For now, we'll assume all reports are completed
-    // In a real implementation, we'd check the status from the API
-    return "Completed";
+  // Handle task deletion
+  const handleDeleteTask = async (task: AnalysisTask) => {
+    setTaskToDelete(task);
+  };
+
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      // If the task is completed, delete the report first
+      if (taskToDelete.status === "completed") {
+        try {
+          await api.delete(`/reports/${taskToDelete.task_id}`);
+        } catch (err) {
+          console.error("Error deleting report:", err);
+          // Continue with task deletion even if report deletion fails
+        }
+      }
+
+      // Delete the analysis task
+      await api.delete(`/analysis/tasks/${taskToDelete.task_id}`);
+
+      // Remove the task from the state
+      setTasks((prev) =>
+        prev.filter((t) => t.task_id !== taskToDelete.task_id)
+      );
+
+      toast({
+        title: "Task deleted",
+        description: "The analysis task has been deleted successfully.",
+      });
+    } catch (err) {
+      console.error("Error deleting task:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete the task. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setTaskToDelete(null);
+    }
+  };
+
+  const cancelDeleteTask = () => {
+    setTaskToDelete(null);
   };
 
   // Render loading state
@@ -228,13 +195,13 @@ const Reports = () => {
       <Layout>
         <div className="analyzer-container py-10">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <h1 className="text-3xl font-bold">Project Reports</h1>
+            <h1 className="text-3xl font-bold">Analysis Tasks</h1>
           </div>
 
           <Card className="p-8 flex items-center justify-center min-h-[400px]">
             <div className="flex flex-col items-center text-center space-y-4">
               <Loader className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-lg">Loading reports...</p>
+              <p className="text-lg">Loading analysis tasks...</p>
             </div>
           </Card>
         </div>
@@ -248,16 +215,35 @@ const Reports = () => {
       <Layout>
         <div className="analyzer-container py-10">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <h1 className="text-3xl font-bold">Project Reports</h1>
+            <h1 className="text-3xl font-bold">Analysis Tasks</h1>
           </div>
 
-          <Card className="p-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-red-500 mb-4">
-                Error Loading Reports
-              </h2>
-              <p className="mb-4">{error}</p>
+          <Card className="p-8 flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <p className="text-lg text-red-500">{error}</p>
               <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Render empty state
+  if (tasks.length === 0) {
+    return (
+      <Layout>
+        <div className="analyzer-container py-10">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <h1 className="text-3xl font-bold">Analysis Tasks</h1>
+          </div>
+
+          <Card className="p-8 flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <p className="text-lg">No analysis tasks found.</p>
+              <Button asChild>
+                <Link to="/">Analyze a Repository</Link>
+              </Button>
             </div>
           </Card>
         </div>
@@ -269,153 +255,175 @@ const Reports = () => {
     <Layout>
       <div className="analyzer-container py-10">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <h1 className="text-3xl font-bold">Project Reports</h1>
-          {selectedReports.length > 0 && (
-            <Button
-              onClick={handleDownloadSelected}
-              className="bg-analyzer-red hover:bg-analyzer-red/90"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Download Selected ({selectedReports.length})
-            </Button>
-          )}
+          <h1 className="text-3xl font-bold">Analysis Tasks</h1>
+          <Button asChild variant="default">
+            <Link to="/">Analyze New Repository</Link>
+          </Button>
         </div>
 
-        <Card className="mb-8">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Filter Reports</CardTitle>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <CardTitle>Repository Analysis Tasks</CardTitle>
+              <div className="flex gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Search repositories..."
+                    className="pl-8 w-[250px]"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search reports..."
-                  className="pl-9"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <Filter className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox h-4 w-4 text-primary border-gray-300 rounded"
+                      onChange={handleSelectAllChange}
+                      checked={
+                        selectedTasks.length > 0 &&
+                        selectedTasks.length === filteredTasks.length
+                      }
+                    />
+                  </TableHead>
+                  <TableHead>Repository</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead>Submitted Date</TableHead>
+                  <TableHead>Completed Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTasks.map((task) => {
+                  const formattedStatus =
+                    STATUS_MAPPING[task.status] || task.status;
+                  const statusColor =
+                    STATUS_COLORS[formattedStatus] ||
+                    "bg-gray-500/10 text-gray-600";
+                  const isCompleted = task.status === "completed";
 
-        <Card>
-          <CardContent className="p-0">
-            <div className="relative overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">
-                      <Input
-                        type="checkbox"
-                        className="w-5 h-5"
-                        checked={
-                          selectedReports.length === filteredReports.length &&
-                          filteredReports.length > 0
-                        }
-                        onChange={handleSelectAllChange}
-                      />
-                    </TableHead>
-                    <TableHead>Repository</TableHead>
-                    <TableHead className="hidden md:table-cell">
-                      Score
-                    </TableHead>
-                    <TableHead className="hidden md:table-cell">Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredReports.length > 0 ? (
-                    filteredReports.map((report) => (
-                      <TableRow key={report.task_id}>
-                        <TableCell>
-                          <Input
-                            type="checkbox"
-                            className="w-5 h-5"
-                            checked={selectedReports.includes(report.task_id)}
-                            onChange={() =>
-                              handleReportSelection(report.task_id)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <Link
-                            to={`/reports/${report.task_id}`}
-                            className="hover:text-primary hover:underline"
-                          >
-                            {report.repo_name}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {report.scores &&
-                          report.scores.overall !== undefined ? (
-                            <Badge variant="outline">
-                              {report.scores.overall.toFixed(1)}/10
-                            </Badge>
+                  return (
+                    <TableRow key={task.task_id}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="form-checkbox h-4 w-4 text-primary border-gray-300 rounded"
+                          checked={selectedTasks.includes(task.task_id)}
+                          onChange={() => handleTaskSelection(task.task_id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">
+                          {getRepoName(task.github_url)}
+                        </div>
+                        <div className="text-sm text-muted-foreground truncate max-w-[250px]">
+                          {task.github_url}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={statusColor}>{formattedStatus}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="w-[100px] h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary"
+                            style={{ width: `${task.progress || 0}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {task.progress || 0}%
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {task.submitted_at
+                          ? formatFormalDate(new Date(task.submitted_at))
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {task.completed_at
+                          ? formatFormalDate(new Date(task.completed_at))
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isCompleted ? (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link to={`/reports/${task.task_id}`}>
+                                View Report
+                              </Link>
+                            </Button>
                           ) : (
-                            <Badge variant="outline">N/A</Badge>
+                            <Button variant="outline" size="sm" disabled>
+                              View Report
+                            </Button>
                           )}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {formatFormalDate(report.created_at)}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-2 py-1 rounded-md text-xs font-medium ${
-                              STATUS_COLORS[
-                                getReportStatus(
-                                  report
-                                ) as keyof typeof STATUS_COLORS
-                              ] || ""
-                            }`}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-100"
+                            onClick={() => handleDeleteTask(task)}
                           >
-                            {getReportStatus(report)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" asChild>
-                            <Link to={`/reports/${report.task_id}`}>
-                              <Download className="h-4 w-4" />
-                              <span className="sr-only">Download</span>
-                            </Link>
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete</span>
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center">
-                        No reports found matching your criteria
+                        </div>
                       </TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </CardContent>
-          <CardFooter className="flex justify-between border-t px-6 py-4">
-            <div className="text-sm text-muted-foreground">
-              Showing <strong>{filteredReports.length}</strong> of{" "}
-              <strong>{reports.length}</strong> reports
-            </div>
+          <CardFooter className="flex justify-between">
+            <p className="text-sm text-muted-foreground">
+              Showing {filteredTasks.length} of {tasks.length} tasks
+            </p>
+            <Button variant="outline" size="sm" onClick={fetchTasks}>
+              Refresh
+            </Button>
           </CardFooter>
         </Card>
       </div>
+
+      {/* Delete Task Confirmation Dialog */}
+      <AlertDialog open={!!taskToDelete} onOpenChange={cancelDeleteTask}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Analysis Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              {taskToDelete?.status === "completed"
+                ? "This will delete both the analysis task and its associated report. This action cannot be undone."
+                : "Are you sure you want to delete this analysis task? This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteTask}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };
