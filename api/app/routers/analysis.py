@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/submit", response_model=AnalysisStatus, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/submit", response_model=AnalysisStatus, status_code=status.HTTP_202_ACCEPTED
+)
 async def submit_analysis(
     analysis_data: AnalysisCreate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -172,7 +174,7 @@ async def get_analysis_task(
     }
 
 
-@router.delete("/tasks/{task_id}", response_model=AnalysisStatus)
+@router.delete("/tasks/{task_id}/cancel", response_model=AnalysisStatus)
 async def cancel_analysis_task(
     task_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -212,3 +214,37 @@ async def cancel_analysis_task(
         "error_message": task.error_message,
         "completed_at": task.completed_at,
     }
+
+
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_analysis_task(
+    task_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    analysis_service: AnalysisService = Depends(get_analysis_service),
+):
+    """
+    Permanently delete an analysis task.
+
+    Args:
+        task_id: Analysis task ID
+        current_user: Current authenticated user
+        analysis_service: Analysis service
+
+    Returns:
+        None: Returns 204 No Content on success
+    """
+    # Delete task
+    success = await analysis_service.delete_task(
+        task_id=task_id,
+        user_id=str(current_user.id),
+    )
+
+    # Check if task exists and was deleted
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis task not found",
+        )
+
+    # Return no content
+    return None

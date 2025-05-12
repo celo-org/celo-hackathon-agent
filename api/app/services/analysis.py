@@ -152,6 +152,34 @@ class AnalysisService:
 
         return task
 
+    async def delete_task(self, task_id: str, user_id: str) -> bool:
+        """
+        Delete an analysis task from the database.
+
+        Args:
+            task_id: Task ID
+            user_id: User ID
+
+        Returns:
+            bool: True if task was deleted, False otherwise
+        """
+        # Get the task
+        task = await self.get_task(task_id, user_id)
+        if not task:
+            return False
+
+        # If task is in progress, try to cancel the job first
+        if task.status in ["pending", "in_progress"]:
+            await self.queue_service.cancel_job(str(task.id))
+
+        # Delete the task
+        await self.db.delete(task)
+        await self.db.commit()
+
+        logger.info(f"Deleted analysis task: {task_id}")
+
+        return True
+
 
 # Dependency
 async def get_analysis_service(

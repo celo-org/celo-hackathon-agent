@@ -68,6 +68,30 @@ class ReportService:
         result = await self.db.execute(query)
         return result.scalars().first()
 
+    async def delete_report(self, report_id: str, user_id: str) -> bool:
+        """
+        Delete a report.
+
+        Args:
+            report_id: Report ID (same as task_id)
+            user_id: User ID
+
+        Returns:
+            bool: True if report was deleted, False otherwise
+        """
+        # Get the report
+        report = await self.get_report(report_id, user_id)
+        if not report:
+            return False
+
+        # Delete the report
+        await self.db.delete(report)
+        await self.db.commit()
+
+        logger.info(f"Deleted report: {report_id}")
+
+        return True
+
     async def generate_report_content(
         self, report: Report, format: str = "md"
     ) -> Tuple[str, str, str]:
@@ -132,7 +156,9 @@ class ReportService:
 
         # Title
         md_content.append(f"# Analysis Report: {report.repo_name}")
-        md_content.append(f"*Generated on: {report.created_at.strftime('%Y-%m-%d %H:%M UTC')}*\n")
+        md_content.append(
+            f"*Generated on: {report.created_at.strftime('%Y-%m-%d %H:%M UTC')}*\n"
+        )
 
         # Scores
         if report.scores:
@@ -150,7 +176,9 @@ class ReportService:
             md_content.append("## Summary")
 
             if isinstance(content["summary"], dict):
-                md_content.append(content["summary"].get("text", "No summary provided."))
+                md_content.append(
+                    content["summary"].get("text", "No summary provided.")
+                )
             elif isinstance(content["summary"], str):
                 md_content.append(content["summary"])
 
