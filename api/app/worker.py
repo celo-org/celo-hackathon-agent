@@ -83,6 +83,15 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         model = options.get("model", settings.DEFAULT_MODEL)
         temperature = float(options.get("temperature", settings.TEMPERATURE))
 
+        # Override model based on analysis_type if present
+        analysis_type = options.get("analysis_type", "fast")
+        if analysis_type == "fast":
+            model = "gemini-2.5-flash-preview-04-17"  # Fast model
+        elif analysis_type == "deep":
+            model = "gemini-2.5-pro-preview-03-25"  # Deep model
+
+        logger.info(f"Using model {model} for {analysis_type} analysis")
+
         # Set the correct path to the prompt file
         # If prompt is just a name, assume it's in the prompts directory
         prompt_option = options.get("prompt", "default")
@@ -92,7 +101,9 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
             prompt_option = f"{prompt_option}.txt"
 
         if "/" not in prompt_option:
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+            project_root = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "../..")
+            )
             prompt_path = os.path.join(project_root, "prompts", prompt_option)
         else:
             prompt_path = prompt_option
@@ -133,7 +144,9 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
 
                     analysis_text = f"Error: Received JSON instead of markdown:\n```json\n{json.dumps(analysis, indent=2)}\n```"
                 except:
-                    analysis_text = "Error: Failed to generate report. Please try again."
+                    analysis_text = (
+                        "Error: Failed to generate report. Please try again."
+                    )
         else:
             # Already a string
             analysis_text = analysis
@@ -197,7 +210,11 @@ def extract_scores(analysis):
         return {"overall": 0}
 
     # Special case for markdown content - try to extract scores from markdown tables
-    if "type" in analysis and analysis["type"] == "markdown" and "raw_markdown" in analysis:
+    if (
+        "type" in analysis
+        and analysis["type"] == "markdown"
+        and "raw_markdown" in analysis
+    ):
         return extract_scores_from_markdown(analysis["raw_markdown"])
 
     # Check if this is an error object
