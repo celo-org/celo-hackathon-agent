@@ -7,7 +7,7 @@ const API_BASE_URL =
 
 // API interfaces
 interface User {
-  id: string;
+  id: string; // This will be a UUID string from the backend
   username: string;
   email: string;
   is_active: boolean;
@@ -62,6 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           // Fetch user data to validate token
           const userData = await api.get<User>("/auth/me");
+          // Ensure the id is a string (in case it's a UUID object)
+          if (userData && typeof userData.id !== "string") {
+            userData.id = String(userData.id);
+          }
           setUser(userData);
         } catch (err) {
           console.error("Error fetching user data, clearing token:", err);
@@ -107,6 +111,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch user data
       const userData = await api.get<User>("/auth/me");
+      // Ensure the id is a string
+      if (userData && typeof userData.id !== "string") {
+        userData.id = String(userData.id);
+      }
       setUser(userData);
     } catch (err: unknown) {
       console.error("Login failed:", err);

@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 from app.config import settings
 from app.db.session import get_db_session
 from app.db.models import User
-from app.schemas.user import UserCreate, User as UserSchema, UserLogin
+from app.schemas.user import UserCreate, User as UserSchema, UserLogin, UserRead
 from app.schemas.token import Token, TokenPayload
 from app.services.auth import (
     create_access_token,
@@ -52,7 +52,9 @@ async def get_current_user(
 
     try:
         # Decode the token
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         user_id: str = payload.get("sub")
 
         if user_id is None:
@@ -81,7 +83,9 @@ async def get_current_user(
     return user
 
 
-@router.post("/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED
+)
 async def register_user(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db_session),
@@ -211,7 +215,7 @@ async def login_json(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/me", response_model=UserSchema)
+@router.get("/me", response_model=UserRead)
 async def get_current_user_info(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
@@ -224,4 +228,12 @@ async def get_current_user_info(
     Returns:
         User: User information
     """
-    return current_user
+    return UserRead(
+        id=str(current_user.id),
+        username=current_user.username,
+        email=current_user.email,
+        is_active=current_user.is_active,
+        is_admin=current_user.is_admin,
+        created_at=current_user.created_at,
+        updated_at=current_user.updated_at,
+    )

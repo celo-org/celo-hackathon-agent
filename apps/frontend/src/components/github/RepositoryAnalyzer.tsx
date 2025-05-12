@@ -39,6 +39,10 @@ export function RepositoryAnalyzer() {
       const response = await api.post<{ task_id: string }>("/analysis/submit", {
         github_urls: [inputUrl],
         options: {
+          model: "gemini-2.5-pro-preview-03-25",
+          temperature: 0.7,
+          include_metrics: true,
+          output_format: "markdown",
           analysis_type: analysisType,
         },
       });
