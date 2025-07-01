@@ -46,7 +46,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: docker/api/Dockerfile
+      dockerfile: docker/backend/Dockerfile
       target: development
     container_name: analyzer-api
     environment:
@@ -67,6 +67,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    command: ["python", "packages/api/src/api.py"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -79,7 +80,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: docker/api/Dockerfile
+      dockerfile: docker/backend/Dockerfile
       target: development
     container_name: analyzer-worker
     environment:

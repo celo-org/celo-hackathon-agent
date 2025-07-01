@@ -1,5 +1,5 @@
 # AI Project Analyzer - Simple Makefile
-.PHONY: help install test clean dev build docker-up docker-down
+.PHONY: help install test clean dev dev-frontend build docker-up docker-down
 
 # Default target
 help:
@@ -8,7 +8,8 @@ help:
 	@echo "  install     Install all packages"
 	@echo "  test        Run tests"
 	@echo "  clean       Clean build artifacts"
-	@echo "  dev         Start development environment"
+	@echo "  dev         Start backend development (API + Worker in Docker)"
+	@echo "  dev-frontend Start frontend development only"
 	@echo "  build       Build all packages"
 	@echo "  docker-up   Start Docker services"
 	@echo "  docker-down Stop Docker services"
@@ -40,17 +41,30 @@ clean:
 	@find packages/ -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 	@echo "✅ Clean complete"
 
-# Start development environment
+# Start backend development (API + Worker in Docker with hot reload)
 dev:
-	@echo "🚀 Starting development environment..."
-	@echo "Starting backend services..."
-	@docker-compose up -d
-	@echo "Starting frontend..."
-	@cd packages/frontend && npm run dev &
+	@echo "🚀 Starting backend development environment..."
+	@echo "Building and starting all backend services..."
+	@docker-compose up postgres redis api worker -d
+	@echo "Waiting for services to be ready..."
+	@sleep 8
 	@echo ""
-	@echo "✅ Development environment started:"
-	@echo "  API: http://localhost:8000"
-	@echo "  Frontend: http://localhost:5173"
+	@echo "✅ Backend development environment started:"
+	@echo "  API: http://localhost:8000 (Docker with hot reload)"
+	@echo "  API Docs: http://localhost:8000/docs"
+	@echo "  Worker: Background worker (Docker with hot reload)"
+	@echo "  Database: PostgreSQL (Docker)"
+	@echo "  Redis: Redis (Docker)"
+	@echo ""
+	@echo "To stop: make stop"
+
+# Start frontend development only
+dev-frontend:
+	@echo "🚀 Starting frontend development..."
+	@cd packages/frontend && pnpm dev &
+	@echo ""
+	@echo "✅ Frontend development started:"
+	@echo "  Frontend: http://localhost:5173 (with hot reload)"
 	@echo ""
 	@echo "To stop: make stop"
 
@@ -75,4 +89,5 @@ stop:
 	@echo "🛑 Stopping development environment..."
 	@docker-compose down
 	@pkill -f "vite" 2>/dev/null || true
+	@pkill -f "pnpm dev" 2>/dev/null || true
 	@echo "✅ Development environment stopped"
