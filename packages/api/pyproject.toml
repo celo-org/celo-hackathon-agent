@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-project-analyzer-api"
+version = "0.1.0"
+description = "REST API server for AI Project Analyzer"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+dependencies = [
+    # API-specific dependencies
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic[email]>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+    "asyncpg>=0.29.0",
+    "python-jose>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "greenlet>=2.0.0",
+    "psycopg2-binary>=2.9.7",
+    "redis>=5.0.0",
+    "rq>=1.15.0",
+    "aioredis>=2.0.0",
+    "ipfshttpclient>=0.8.0a2",
+    "httpx>=0.25.0",
+    # Core package dependencies included directly
+    "langchain>=0.1.0",
+    "langchain-google-genai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "gitingest>=0.1.12",
+    "loguru>=0.7.0",
+    "PyGithub>=1.59.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+# Package-specific development dependencies (shared ones are in workspace root)
+[project.optional-dependencies]
+dev = [
+    # API testing specific dependencies (others are in workspace root)
+    "httpx>=0.25.0",  # for API testing
+] 
