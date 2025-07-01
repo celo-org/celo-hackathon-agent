@@ -33,7 +33,7 @@ This is a monorepo for an AI-powered GitHub repository analyzer using:
 - Test error scenarios and edge cases
 - Use pytest for Python, Jest/Vitest for frontend
 
----
+---x
 
 ## Python (Backend) Rules
 
