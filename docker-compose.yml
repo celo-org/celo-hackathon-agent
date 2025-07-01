@@ -1,0 +1,203 @@
+version: "3.8"
+
+services:
+  # ===============================
+  # DATABASE SERVICES
+  # ===============================
+  postgres:
+    image: postgres:15-alpine
+    container_name: analyzer-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: analyzer_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - analyzer-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: analyzer-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - analyzer-network
+
+  # ===============================
+  # APPLICATION SERVICES
+  # ===============================
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      target: development
+    container_name: analyzer-api
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/analyzer_db
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_key}
+    volumes:
+      - .:/app
+      - /app/packages/frontend/node_modules
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - analyzer-network
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      target: development
+    container_name: analyzer-worker
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/analyzer_db
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_key}
+    volumes:
+      - .:/app
+    command: ["python", "packages/api/src/worker.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - analyzer-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      target: development
+    container_name: analyzer-frontend
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+    volumes:
+      - ./packages/frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    networks:
+      - analyzer-network
+    restart: unless-stopped
+
+  # ===============================
+  # MONITORING & UTILITIES
+  # ===============================
+  postgres-admin:
+    image: dpage/pgadmin4:latest
+    container_name: analyzer-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@analyzer.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - analyzer-network
+    profiles:
+      - admin
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: analyzer-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - analyzer-network
+    profiles:
+      - admin
+
+  # ===============================
+  # TESTING SERVICE
+  # ===============================
+  test-runner:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      target: development
+    container_name: analyzer-test-runner
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/analyzer_test_db
+      - REDIS_URL=redis://redis:6379/1
+      - GOOGLE_API_KEY=test_key
+      - JWT_SECRET=test_secret
+    volumes:
+      - .:/app
+    command: ["./scripts/test.sh", "--coverage"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - analyzer-network
+    profiles:
+      - test
+
+# ===============================
+# VOLUMES
+# ===============================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+# ===============================
+# NETWORKS
+# ===============================
+networks:
+  analyzer-network:
+    driver: bridge
+    name: analyzer-network

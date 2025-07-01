@@ -3,46 +3,61 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-project-analyzer"
+name = "ai-project-analyzer-workspace"
 version = "0.1.0"
-description = "Analyze GitHub projects using LLMs"
+description = "Monorepo workspace for AI Project Analyzer"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]
-dependencies = [
-    "langchain",
-    "langchain-google-genai",
-    "python-dotenv",
-    "gitingest",
-    "typer",
-    "rich",
-    "loguru",
-    "PyGithub",
-    "pandas",
-    "openpyxl",
-    "fastapi",
-    "uvicorn",
-    "pydantic[email]",
-    "pydantic-settings",
-    "sqlalchemy",
-    "alembic",
-    "asyncpg",
-    "python-jose",
-    "passlib[bcrypt]",
-    "python-multipart",
-    "greenlet",
-    "psycopg2-binary",
-    "redis",
-    "rq",
-    "aioredis",
+
+# Prevent setuptools from trying to build packages in this workspace root
+[tool.setuptools]
+packages = []
+
+# Workspace configuration
+[tool.workspace]
+packages = [
+    "packages/core",
+    "packages/cli", 
+    "packages/api",
+    "packages/frontend"
 ]
 
-[project.scripts]
-analyze = "src.cli:app"
+# Shared development dependencies across all Python packages
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.12.1",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.24.0",  # for API testing
+]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py311"
+
+# Shared configuration for all packages
+[tool.ruff.lint]
+# Focus on the most important rules while avoiding monorepo false positives
+select = ["F", "E4", "E7", "E9", "W6", "B", "I"]
+ignore = [
+    "E402",  # Module level import not at top of file (needed for monorepo sys.path)
+    "F401",  # Imported but unused (common in __init__.py files)  
+    "E501",  # Line too long (handled by formatter)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# Merged into main dependency-groups section above

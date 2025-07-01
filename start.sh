@@ -1,134 +1,155 @@
 #!/bin/bash
-# Start script for the GitHub Repository Analyzer API
+# Start script for the AI Project Analyzer Monorepo
 
-# Prevent issues with fork() on macOS
-export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
-
-# Load environment variables
-source .env
+set -e
 
 # Function to display usage information
 show_usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
-    echo "  --api-only     Start only the API server"
-    echo "  --worker-only  Start only the worker process"
-    echo "  --help         Show this help message"
+    echo "  --api-only       Start only the API server"
+    echo "  --frontend-only  Start only the frontend"
+    echo "  --full-stack     Start API + Frontend (default)"
+    echo "  --help           Show this help message"
     echo ""
-    echo "By default, both API server and worker will be started."
+    echo "Development commands:"
+    echo "  --dev            Start all services in development mode"
 }
 
 # Parse command line arguments
-API_ONLY=false
-WORKER_ONLY=false
+MODE="full-stack"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --api-only)
-            API_ONLY=true
-            shift
-            ;;
-        --worker-only)
-            WORKER_ONLY=true
-            shift
-            ;;
-        --help)
-            show_usage
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            show_usage
-            exit 1
-            ;;
+    --api-only)
+        MODE="api-only"
+        shift
+        ;;
+    --frontend-only)
+        MODE="frontend-only"
+        shift
+        ;;
+    --full-stack)
+        MODE="full-stack"
+        shift
+        ;;
+    --dev)
+        MODE="dev"
+        shift
+        ;;
+    --help)
+        show_usage
+        exit 0
+        ;;
+    *)
+        echo "Unknown option: $1"
+        show_usage
+        exit 1
+        ;;
     esac
 done
 
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+echo "AI Project Analyzer - Monorepo"
+echo "================================"
+
+# Function to start services
+start_services() {
+    case "$MODE" in
+    "api-only")
+        echo "Starting API services..."
+        cd packages/api && ./start.sh
+        ;;
+    "frontend-only")
+        echo "Starting frontend..."
+        cd packages/frontend && npm run dev
+        ;;
+    "full-stack")
+        echo "Starting full stack (API + Frontend)..."
+
+        # Start API services in background
+        cd packages/api
+        ./start.sh &
+        API_PID=$!
+        cd ../..
+
+        # Wait a bit for API to start
+        sleep 3
+
+        # Start frontend
+        cd packages/frontend
+        npm run dev &
+        FRONTEND_PID=$!
+        cd ../..
+
+        echo "Services started:"
+        echo "- API services (PID: $API_PID)"
+        echo "- Frontend (PID: $FRONTEND_PID)"
+        echo ""
+        echo "Access the application at: http://localhost:5173"
+        echo "API documentation at: http://localhost:8000/docs"
+        ;;
+    "dev")
+        echo "Starting all services in development mode..."
+
+        # Start infrastructure
+        echo "Starting infrastructure (PostgreSQL + Redis)..."
+        docker-compose -f config/docker-compose.yml up -d
+
+        # Wait for services to be ready
+        echo "Waiting for services to be ready..."
+        sleep 5
+
+        # Start API
+        cd packages/api
+        ./start.sh &
+        API_PID=$!
+        cd ../..
+
+        # Start frontend
+        cd packages/frontend
+        npm run dev &
+        FRONTEND_PID=$!
+        cd ../..
+
+        echo ""
+        echo "Development environment started:"
+        echo "- PostgreSQL: localhost:5432"
+        echo "- Redis: localhost:6379"
+        echo "- API: http://localhost:8000"
+        echo "- Frontend: http://localhost:5173"
+        echo "- API Docs: http://localhost:8000/docs"
+        ;;
+    esac
 }
 
-# Function to check if a process is running
-is_process_running() {
-    pgrep -f "$1" >/dev/null
-}
-
-# Check Redis status
-check_redis() {
-    if ! command_exists redis-cli; then
-        echo "Redis CLI not found. Cannot check Redis status."
-        return 1
+# Check dependencies
+check_dependencies() {
+    if [ "$MODE" != "frontend-only" ]; then
+        if ! command -v uv &>/dev/null; then
+            echo "Error: uv is required but not installed."
+            echo "Install from: https://github.com/astral-sh/uv"
+            exit 1
+        fi
     fi
 
-    if redis-cli ping >/dev/null 2>&1; then
-        echo "✅ Redis is running"
-        return 0
-    else
-        echo "❌ Redis is not running"
-        echo "  Please start Redis with: docker run -d -p 6379:6379 --name redis-server redis"
-        return 1
+    if [ "$MODE" != "api-only" ]; then
+        if ! command -v npm &>/dev/null; then
+            echo "Error: npm is required but not installed."
+            exit 1
+        fi
     fi
-}
 
-# Start the API server
-start_api() {
-    echo "Starting API server..."
-    uv run api.py &
-    API_PID=$!
-    echo "API server started with PID: $API_PID"
-}
-
-# Start the worker process
-start_worker() {
-    echo "Starting worker process..."
-    uv run worker.py &
-    WORKER_PID=$!
-    echo "Worker process started with PID: $WORKER_PID"
+    if [ "$MODE" = "dev" ]; then
+        if ! command -v docker-compose &>/dev/null && ! command -v docker &>/dev/null; then
+            echo "Error: Docker is required for development mode."
+            exit 1
+        fi
+    fi
 }
 
 # Main execution
-echo "GitHub Repository Analyzer API"
-echo "==============================="
-
-# Always check Redis
-check_redis
-REDIS_STATUS=$?
-
-if [ "$REDIS_STATUS" -ne 0 ] && [ "$WORKER_ONLY" = true ]; then
-    echo "Cannot start worker without Redis. Exiting."
-    exit 1
-fi
-
-# Start the requested components
-if [ "$API_ONLY" = true ]; then
-    start_api
-elif [ "$WORKER_ONLY" = true ]; then
-    if [ "$REDIS_STATUS" -eq 0 ]; then
-        start_worker
-    fi
-else
-    # Start both API and worker
-    start_api
-    if [ "$REDIS_STATUS" -eq 0 ]; then
-        start_worker
-    fi
-fi
-
-# Display startup message
-echo ""
-echo "Services started:"
-if [ "$API_ONLY" = false ]; then
-    if [ "$REDIS_STATUS" -eq 0 ]; then
-        echo "- Worker process (PID: $WORKER_PID)"
-    fi
-fi
-if [ "$WORKER_ONLY" = false ]; then
-    echo "- API server (PID: $API_PID)"
-    echo ""
-    echo "API is available at: http://localhost:${API_PORT:-8000}"
-    echo "API documentation at: http://localhost:${API_PORT:-8000}/docs"
-fi
+check_dependencies
+start_services
 
 echo ""
 echo "Press Ctrl+C to stop all services"
