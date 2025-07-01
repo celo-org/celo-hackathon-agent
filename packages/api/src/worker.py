@@ -6,8 +6,6 @@ Worker process for background tasks.
 import argparse
 import logging
 import os
-import sys
-from pathlib import Path
 
 from redis import Redis
 from rq import Queue, Worker
@@ -15,13 +13,8 @@ from rq import Queue, Worker
 # Prevent issues with fork() on macOS
 os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-# Add packages/api to path so app.* imports work
-api_package_path = project_root / "packages" / "api"
-sys.path.insert(0, str(api_package_path))
+# PYTHONPATH is set via Docker environment variables
+# No manual sys.path manipulation needed
 
 # Load environment variables
 from dotenv import load_dotenv

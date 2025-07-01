@@ -75,6 +75,12 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         code_digest = repo_data["content"]
         metrics = repo_data.get("metrics", {})
 
+        # Validate API key before proceeding
+        if not settings.GOOGLE_API_KEY or settings.GOOGLE_API_KEY == "your_gemini_api_key_here":
+            raise Exception(
+                "GOOGLE_API_KEY is not configured. Please set a valid Gemini API key in your .env file."
+            )
+
         # Get analysis options
         model = options.get("model", settings.DEFAULT_MODEL)
         temperature = float(options.get("temperature", settings.TEMPERATURE))
@@ -105,15 +111,22 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         else:
             prompt_path = prompt_option
 
-        analysis = analyze_single_repository(
-            repo_name,
-            code_digest,
-            prompt_path,
-            model_name=model,
-            temperature=temperature,
-            output_json=False,
-            metrics_data=metrics,
-        )
+        logger.debug(f"Starting LLM analysis for {repo_name} using model {model}")
+
+        try:
+            analysis = analyze_single_repository(
+                repo_name,
+                code_digest,
+                prompt_path,
+                model_name=model,
+                temperature=temperature,
+                output_json=False,
+                metrics_data=metrics,
+            )
+            logger.debug(f"LLM analysis completed for {repo_name}")
+        except Exception as llm_error:
+            logger.error(f"LLM analysis failed for {repo_name}: {str(llm_error)}")
+            raise Exception(f"LLM analysis failed: {str(llm_error)}")
 
         # Update progress
         task.progress = 80

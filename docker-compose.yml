@@ -57,7 +57,7 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - JWT_SECRET=${JWT_SECRET:-dev_secret_key}
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/packages/api
       - WATCHDOG_POLLING=True
     volumes:
       - .:/app
@@ -94,7 +94,7 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - JWT_SECRET=${JWT_SECRET:-dev_secret_key}
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app/packages/api
       - WATCHDOG_POLLING=True
     volumes:
       - .:/app

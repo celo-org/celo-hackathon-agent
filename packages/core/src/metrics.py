@@ -34,7 +34,7 @@ class GithubMetricsFetcher:
         self.token = token or os.environ.get("GITHUB_TOKEN")
         self.github = self._initialize_github()
         self.max_workers = max_workers
-        logger.debug(f"GitHub metrics fetcher initialized with {max_workers} workers")
+        # GitHub metrics fetcher initialized (removed debug log for noise reduction)
 
     def _initialize_github(self) -> Github:
         """
@@ -46,7 +46,7 @@ class GithubMetricsFetcher:
         if self.token:
             auth = Auth.Token(self.token)
             github = Github(auth=auth)
-            logger.debug("GitHub client initialized with token")
+            # GitHub client initialized with token (removed debug log for noise reduction)
         else:
             github = Github()
             logger.warning("GitHub client initialized without token (rate-limited)")
@@ -94,7 +94,7 @@ class GithubMetricsFetcher:
 
         try:
             repo = self.github.get_repo(full_name)
-            logger.debug(f"Fetched repository: {full_name}")
+            # Repository fetched successfully (removed debug log for noise reduction)
             return repo
         except Exception as e:
             logger.error(f"Error fetching repository {full_name}: {str(e)}")

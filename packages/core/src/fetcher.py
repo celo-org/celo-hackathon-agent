@@ -241,7 +241,7 @@ def normalize_repo_url(url: str) -> str:
     # Remove trailing slashes
     url = url.rstrip("/")
 
-    logger.debug(f"Normalized URL: {url}")
+    # URL normalized (removed debug log for noise reduction)
     return url
 
 

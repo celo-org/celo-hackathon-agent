@@ -40,6 +40,11 @@ def get_gemini_api_key() -> str:
             f"{GEMINI_API_KEY_ENV} environment variable is not set. "
             f"Please set it in your .env file or export it directly."
         )
+    if api_key in ["your_gemini_api_key_here", "your_actual_gemini_api_key_here"]:
+        raise ValueError(
+            f"{GEMINI_API_KEY_ENV} is set to a placeholder value. "
+            f"Please set a real Gemini API key from https://aistudio.google.com/app/apikey"
+        )
     return api_key
 
 
@@ -129,6 +134,13 @@ def setup_logging(level_name: Optional[str] = None) -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
+    # Suppress HTTP connection debug logs (very noisy)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+
+    # Suppress asyncio debug logs
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+
     # Suppress RQ (Redis Queue) INFO logs
     logging.getLogger("rq.worker").setLevel(logging.WARNING)
     logging.getLogger("rq.queue").setLevel(logging.WARNING)
@@ -155,4 +167,10 @@ def setup_logging(level_name: Optional[str] = None) -> None:
     logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
     logging.getLogger("alembic").setLevel(logging.WARNING)
 
-    logging.debug(f"Logging initialized at level: {level_name}")
+    # Suppress GitHub API and gitingest debug logs
+    logging.getLogger("github").setLevel(logging.WARNING)
+    logging.getLogger("gitingest").setLevel(logging.WARNING)
+
+    # Only log the initialization at INFO level to avoid noise
+    if level >= logging.INFO:
+        logging.info(f"Logging initialized at level: {level_name}")
