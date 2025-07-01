@@ -3,7 +3,8 @@ Database session management for the API server.
 """
 
 import logging
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 
 from app.config import settings
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Create async engine
 engine = create_async_engine(
     DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=False,  # Disable SQL logging to reduce noise
     future=True,
 )
 
@@ -48,6 +49,4 @@ async def create_db_and_tables():
     async with engine.begin() as conn:
         # Import models to ensure they're registered with Base metadata
 
-        logger.info("Creating database tables...")
         await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created or already exist")

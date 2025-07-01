@@ -118,32 +118,19 @@ def main():
     if args.github_urls:
         # Parse comma-separated list
         github_urls = [url.strip() for url in args.github_urls.split(",")]
-        logging.info(f"Found {len(github_urls)} GitHub URLs from command line arguments")
     elif args.input_file:
         # Parse from file
-        logging.info(f"Parsing GitHub URLs from file: {args.input_file}")
         try:
             github_urls = parse_input_file(args.input_file)
-            logging.info(f"Found {len(github_urls)} GitHub URLs from input file")
         except Exception as e:
             logging.error(f"Failed to parse input file: {str(e)}")
             return 1
 
-    # Log start of analysis with selected model
-    logging.info(f"Starting analysis with model: {args.model}, temperature: {args.temperature}")
-    if args.json:
-        logging.info("Using JSON output format")
-
     # Configure metrics collection
     include_metrics = not args.no_metrics
-    if include_metrics:
-        logging.info("GitHub metrics collection is enabled")
-    else:
-        logging.info("GitHub metrics collection is disabled")
 
     # Create timestamped directory for reports
     report_dir = generate_report_directory(args.output)
-    logging.info(f"Reports will be saved to directory: {report_dir}")
 
     # Track total GitHub URLs and completed repositories
     total_repos = len(github_urls)
@@ -154,8 +141,6 @@ def main():
 
     # Process each repository individually
     for index, url in enumerate(github_urls, 1):
-        logging.info(f"Processing repository {index}/{total_repos}: {url}")
-
         # Step 1: Fetch repository content and metrics
         repo_name, repo_data = fetch_single_repository(
             url, include_metrics=include_metrics, github_token=args.github_token
@@ -222,8 +207,6 @@ def main():
             print(f"⏱️  Estimated time remaining: {time_str}")
 
     # Final stats
-    logging.info(f"Completed analysis of {completed_repos}/{total_repos} repositories")
-
     if completed_repos == 0:
         logging.error("No repositories were successfully analyzed. Exiting.")
         return 1
@@ -242,7 +225,6 @@ def main():
     mins, secs = divmod(total_time, 60)
     print(f"\nTotal execution time: {int(mins)} minutes, {int(secs)} seconds")
 
-    logging.info("Analysis complete!")
     return 0
 
 

@@ -4,16 +4,18 @@ Authentication router for the API.
 
 import logging
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.db.session import get_db_session
 from app.db.models import User
-from app.schemas.user import UserCreate, User as UserSchema, UserLogin, UserRead
+from app.db.session import get_db_session
 from app.schemas.token import Token, TokenPayload
+from app.schemas.user import User as UserSchema
+from app.schemas.user import UserCreate, UserLogin, UserRead
 from app.services.auth import (
     create_access_token,
     get_auth_service,
@@ -167,7 +169,6 @@ async def login_for_access_token(
 
     # Create access token
     access_token = create_access_token(user.id)
-    logger.info(f"User logged in: {user.username}")
 
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -206,7 +207,6 @@ async def login_json(
 
     # Create access token
     access_token = create_access_token(user.id)
-    logger.info(f"User logged in via JSON: {user.username}")
 
     return {"access_token": access_token, "token_type": "bearer"}
 

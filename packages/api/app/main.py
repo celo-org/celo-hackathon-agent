@@ -3,34 +3,30 @@ Main application module for the API server.
 """
 
 import logging
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Add project root to path to import core modules
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+try:
+    # Try Docker/installed package path first
+    from core.src.config import setup_logging
+except ImportError:
+    # Fallback to development path
+    from packages.core.src.config import setup_logging
 
 from app.config import settings
 from app.db.session import create_db_and_tables
 from app.routers import analysis, auth, health, reports
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-
-# Silence noisy loggers when not in DEBUG mode
-if getattr(logging, settings.LOG_LEVEL) > logging.DEBUG:
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.dialects").setLevel(logging.WARNING)
-    logging.getLogger("alembic").setLevel(logging.WARNING)
-
-# Always silence these noisy loggers regardless of log level
-logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
-logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
-logging.getLogger("app.db.session").setLevel(logging.WARNING)
+# Configure logging using centralized setup
+setup_logging(settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 

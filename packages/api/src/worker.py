@@ -24,23 +24,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Import analyze_repository function directly
+# Import centralized logging setup
+try:
+    # Try Docker/installed package path first
+    from core.src.config import setup_logging
+except ImportError:
+    # Fallback to development path
+    from packages.core.src.config import setup_logging
 
-# Configure logging
+# Configure logging using centralized setup
 log_level_name = os.getenv("LOG_LEVEL", "INFO")
-log_level = getattr(logging, log_level_name.upper(), logging.INFO)
-
-logging.basicConfig(
-    level=log_level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-# Silence noisy loggers when not in DEBUG mode
-if log_level > logging.DEBUG:
-    logging.getLogger("rq.worker").setLevel(logging.WARNING)
-    logging.getLogger("rq.queue").setLevel(logging.WARNING)
-
+setup_logging(log_level_name)
 logger = logging.getLogger(__name__)
 
 

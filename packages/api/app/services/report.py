@@ -2,8 +2,9 @@
 
 import json
 import logging
-from typing import List, Optional, Tuple
 from datetime import datetime
+from typing import List, Optional, Tuple
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -87,8 +88,6 @@ class ReportService:
         await self.db.delete(report)
         await self.db.commit()
 
-        logger.info(f"Deleted report: {report_id}")
-
         return True
 
     async def generate_report_content(
@@ -131,12 +130,10 @@ class ReportService:
 
         # Return markdown directly if available
         if isinstance(content, dict) and "markdown" in content:
-            logger.info("Using markdown content from report")
             return content["markdown"]
 
         # Legacy support for raw_markdown key
         if isinstance(content, dict) and "raw_markdown" in content:
-            logger.info("Using raw_markdown content from report")
             return content["raw_markdown"]
 
         if not isinstance(content, dict):
@@ -148,7 +145,6 @@ class ReportService:
             return f"# Analysis Report for {report.repo_name}\n\nError: {error_message}\n\nPlease try running the analysis again."
 
         # If we get here, we have a legacy JSON report structure - convert it to markdown
-        logger.info("Converting JSON report to markdown")
 
         # Build markdown report
         md_content = []
@@ -265,8 +261,6 @@ class ReportService:
         # Save changes
         await self.db.commit()
         await self.db.refresh(report)
-
-        logger.info(f"Published report to IPFS: {report.id} with hash: {ipfs_hash}")
 
         return ipfs_hash
 

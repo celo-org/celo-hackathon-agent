@@ -1,8 +1,8 @@
 """IPFS service for the API."""
 
-import logging
 import json
-from typing import Optional, Dict, Any
+import logging
+from typing import Any, Dict, Optional
 
 from app.config import settings
 
@@ -40,8 +40,6 @@ class IPFSService:
             content_str = json.dumps(content, sort_keys=True)
             content_hash = hash(content_str)
             cid = f"QmPlaceholder{abs(content_hash)}"
-
-            logger.info(f"Published content to IPFS with CID: {cid}")
 
             return cid
         except Exception as e:

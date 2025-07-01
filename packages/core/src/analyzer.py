@@ -86,9 +86,7 @@ def create_llm_chain(
 
     # Validate model name
     if model_name not in AVAILABLE_MODELS:
-        logger.warning(
-            f"Model {model_name} not recognized, using {DEFAULT_MODEL} instead"
-        )
+        logger.warning(f"Model {model_name} not recognized, using {DEFAULT_MODEL} instead")
         model_name = DEFAULT_MODEL
 
     # Get model-specific token limit or use default
@@ -191,7 +189,6 @@ def analyze_single_repository(
     has_metrics = metrics_data is not None and len(metrics_data) > 0
 
     # Create the LangChain chain for this repository
-    logger.info(f"Creating LLM chain with model {model_name}")
     chain = create_llm_chain(
         prompt_template,
         model_name=model_name,
@@ -216,16 +213,7 @@ def analyze_single_repository(
                 invoke_params["metrics_data"] = metrics_formatted
 
             # Run the analysis
-            logger.info(
-                f"Running LLM analysis for {repo_name} (attempt {retry_count + 1}/{MAX_RETRIES})"
-            )
             analysis = chain.invoke(invoke_params)
-
-            # Calculate time taken
-            elapsed_time = time.time() - start_time
-            logger.info(
-                f"Analysis complete for {repo_name} in {elapsed_time:.2f} seconds"
-            )
 
             return analysis
 
@@ -240,7 +228,6 @@ def analyze_single_repository(
             )
 
             if retry_count < MAX_RETRIES:
-                logger.info(f"Retrying in {RETRY_DELAY} seconds...")
                 time.sleep(RETRY_DELAY)
             else:
                 logger.error(f"All retry attempts failed for {repo_name}")
@@ -277,19 +264,13 @@ def analyze_repositories(
     total_repos = len(repo_digests)
     start_time = time.time()
 
-    # Load the prompt template
-    logger.info(f"Loading prompt from {prompt_path}")
-
     # Process each repository
     for index, (repo_name, code_digest) in enumerate(repo_digests.items(), 1):
-        logger.info(f"Analyzing repository {index}/{total_repos}: {repo_name}")
-
         # Calculate progress
         if index > 1:
             elapsed_time = time.time() - start_time
             avg_time_per_repo = elapsed_time / (index - 1)
             estimated_remaining = avg_time_per_repo * (total_repos - index + 1)
-            logger.info(f"Estimated time remaining: {estimated_remaining:.1f} seconds")
 
         # Extract metrics for this repository if available
         repo_metrics = metrics_data.get(repo_name, {}) if metrics_data else {}
@@ -311,20 +292,11 @@ def analyze_repositories(
     # Calculate and log statistics
     total_time = time.time() - start_time
     successful_analyses = sum(
-        1
-        for v in results.values()
-        if not isinstance(v, str) or not v.startswith("Error:")
+        1 for v in results.values() if not isinstance(v, str) or not v.startswith("Error:")
     )
-
-    logger.info(
-        f"Analyzed {successful_analyses}/{total_repos} repositories successfully"
-    )
-    logger.info(f"Total analysis time: {total_time:.2f} seconds")
 
     if successful_analyses < total_repos:
-        logger.warning(
-            f"Failed to analyze {total_repos - successful_analyses} repositories"
-        )
+        logger.warning(f"Failed to analyze {total_repos - successful_analyses} repositories")
 
     return results
 
@@ -388,9 +360,7 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
             # Alfajores references
             if evidence.get("alfajores_references"):
                 formatted.append("\n#### Files with Alfajores References:")
-                for file_path in evidence["alfajores_references"][
-                    :10
-                ]:  # Limit to 10 files
+                for file_path in evidence["alfajores_references"][:10]:  # Limit to 10 files
                     formatted.append(f"- `{file_path}`")
 
             # Contract addresses
@@ -413,9 +383,7 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
                     has_celo_context = readme_addresses.get("celo_context", False)
 
                     if has_celo_context:
-                        formatted.append(
-                            "- **README.md Contains Celo Contract Addresses:**"
-                        )
+                        formatted.append("- **README.md Contains Celo Contract Addresses:**")
                     else:
                         formatted.append("- **README.md Contains Contract Addresses:**")
 
@@ -428,9 +396,7 @@ def format_metrics_for_prompt(metrics: Dict[str, Any]) -> str:
                     has_celo_context = item.get("celo_context", False)
 
                     if has_celo_context:
-                        formatted.append(
-                            f"- File: `{item['file']}` (Celo context detected)"
-                        )
+                        formatted.append(f"- File: `{item['file']}` (Celo context detected)")
                     else:
                         formatted.append(f"- File: `{item['file']}`")
 

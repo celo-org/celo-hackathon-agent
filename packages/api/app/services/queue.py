@@ -1,9 +1,10 @@
 """Queue service for background tasks."""
 
 import logging
+from typing import Any, Dict
+
 from redis import Redis
 from rq import Queue
-from typing import Dict, Any
 
 from app.config import settings
 
@@ -30,8 +31,6 @@ class QueueService:
         Returns:
             str: Job ID
         """
-        logger.info(f"Enqueuing analysis task: {task_id} for {github_url}")
-
         # Add job to queue
         from app.worker import analyze_repository
 

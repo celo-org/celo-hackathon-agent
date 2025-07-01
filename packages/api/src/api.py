@@ -22,28 +22,20 @@ project_root = Path(__file__).parent.parent.parent
 env_path = project_root / ".env"
 load_dotenv(dotenv_path=env_path)
 
-# Configure logging based on environment variables
+# Add project root to path to import core modules
+sys.path.insert(0, str(project_root))
+
+# Import centralized logging setup
+try:
+    # Try Docker/installed package path first
+    from core.src.config import setup_logging
+except ImportError:
+    # Fallback to development path
+    from packages.core.src.config import setup_logging
+
+# Configure logging using centralized setup
 log_level_name = os.getenv("LOG_LEVEL", "INFO")
-log_level = getattr(logging, log_level_name.upper(), logging.INFO)
-
-logging.basicConfig(
-    level=log_level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-# Silence noisy loggers when not in DEBUG mode
-if log_level > logging.DEBUG:
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn").setLevel(logging.WARNING)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-
-# Always silence these very noisy loggers regardless of log level
-logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
-logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
-logging.getLogger("app.db.session").setLevel(logging.WARNING)
-
+setup_logging(log_level_name)
 logger = logging.getLogger(__name__)
 
 
@@ -58,13 +50,14 @@ def start_api():
 
     logger.debug(f"Server will run on {host}:{port} (reload={reload})")
 
-    # Start the server
+    # Start the server with suppressed Uvicorn INFO logs
+    uvicorn_log_level = "warning" if log_level_name.upper() != "DEBUG" else "debug"
     uvicorn.run(
         "app.main:app",
         host=host,
         port=port,
         reload=reload,
-        log_level=log_level_name.lower(),
+        log_level=uvicorn_log_level,
     )
 
 

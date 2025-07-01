@@ -112,7 +112,6 @@ def analyze(
     with Progress() as progress:
         fetch_task = progress.add_task("[green]Fetching repositories...", total=len(urls))
 
-        logger.info(f"Fetching {len(urls)} repositories: {', '.join(urls)}")
         repo_digests = {}
 
         for url in urls:
@@ -171,7 +170,6 @@ def analyze(
     end_time = time.time()
     duration = end_time - start_time
     rich_print(f"\nTotal execution time: [bold]{duration:.2f}[/bold] seconds")
-    logger.info(f"Total execution time: {duration:.2f} seconds")
 
 
 if __name__ == "__main__":

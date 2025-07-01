@@ -5,14 +5,15 @@ This module handles fetching GitHub repository metrics like stars, forks, contri
 programming languages, and other statistics using parallel processing.
 """
 
+import concurrent.futures
+import json
 import logging
 import os
 import re
-import json
-from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
-import concurrent.futures
-from github import Github, Auth
+from typing import Any, Dict, List, Optional, Tuple
+
+from github import Auth, Github
 
 logger = logging.getLogger(__name__)
 
@@ -126,12 +127,10 @@ class GithubMetricsFetcher:
                     metrics = future.result()
 
                     results[repo_key] = metrics
-                    logger.info(f"Successfully fetched metrics for {repo_key}")
 
                 except Exception as e:
                     logger.error(f"Error fetching metrics for {url}: {str(e)}")
 
-        logger.info(f"Fetched metrics for {len(results)} repositories successfully")
         return results
 
     def fetch_repository_metrics(self, url: str) -> Dict[str, Any]:

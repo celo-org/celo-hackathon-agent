@@ -4,13 +4,14 @@ Authentication service for the API.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Union, Any
+from typing import Any, Optional, Union
+
 from fastapi import Depends
 from jose import jwt
 from passlib.context import CryptContext
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import or_
 
 from app.config import settings
 from app.db.models import User
@@ -122,7 +123,6 @@ async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
     await db.commit()
     await db.refresh(db_user)
 
-    logger.info(f"Created new user: {db_user.username}")
     return db_user
 
 

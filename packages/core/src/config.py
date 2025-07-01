@@ -2,10 +2,11 @@
 Configuration module for the AI Project Analyzer.
 """
 
-import os
 import logging
+import os
 import sys
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -127,5 +128,31 @@ def setup_logging(level_name: Optional[str] = None) -> None:
     # Set third-party loggers to a higher level to reduce noise
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+    # Suppress RQ (Redis Queue) INFO logs
+    logging.getLogger("rq.worker").setLevel(logging.WARNING)
+    logging.getLogger("rq.queue").setLevel(logging.WARNING)
+    logging.getLogger("rq").setLevel(logging.WARNING)
+
+    # Suppress SQLAlchemy INFO logs (all possible loggers)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.dialects").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+
+    # Suppress Uvicorn INFO logs
+    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+
+    # Suppress Passlib DEBUG/INFO logs
+    logging.getLogger("passlib").setLevel(logging.WARNING)
+    logging.getLogger("passlib.utils.compat").setLevel(logging.WARNING)
+    logging.getLogger("passlib.registry").setLevel(logging.WARNING)
+
+    # Suppress other noisy loggers
+    logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
+    logging.getLogger("alembic").setLevel(logging.WARNING)
 
     logging.debug(f"Logging initialized at level: {level_name}")

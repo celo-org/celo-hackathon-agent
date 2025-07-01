@@ -75,8 +75,6 @@ class AnalysisService:
         task_id = str(task.id)
         await self.queue_service.enqueue_analysis(task_id, github_url, options)
 
-        logger.info(f"Submitted analysis task: {task_id} for URL: {github_url}")
-
         return task
 
     async def get_user_tasks(
@@ -153,8 +151,6 @@ class AnalysisService:
         await self.db.commit()
         await self.db.refresh(task)
 
-        logger.info(f"Canceled analysis task: {task.id}")
-
         return task
 
     async def delete_task(self, task_id: str, user_id: str) -> bool:
@@ -180,8 +176,6 @@ class AnalysisService:
         # Delete the task
         await self.db.delete(task)
         await self.db.commit()
-
-        logger.info(f"Deleted analysis task: {task_id}")
 
         return True
 

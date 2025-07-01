@@ -6,9 +6,9 @@ This module handles saving analysis reports to files in various formats.
 
 import logging
 import os
-from typing import Dict, Any, Union
-from datetime import datetime
 import re
+from datetime import datetime
+from typing import Any, Dict, Union
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,6 @@ def save_report(repo_name: str, analysis, output_dir: str) -> str:
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    logger.info(f"Saved report to {report_path}")
     return report_path
 
 
@@ -395,7 +394,6 @@ def update_summary_report(
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write(summary_content)
 
-    logger.info(f"Updated summary report at {summary_path}")
     return summary_path
 
 
@@ -480,7 +478,6 @@ def save_reports(
 
     # Create timestamped directory for this batch of reports
     report_dir = generate_report_directory(base_output_dir)
-    logger.info(f"Saving reports to directory: {report_dir}")
 
     # Save individual reports
     for repo_name, analysis in analyses.items():

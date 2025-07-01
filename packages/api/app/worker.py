@@ -19,14 +19,18 @@ from core.src.analyzer import analyze_single_repository
 from core.src.fetcher import fetch_single_repository
 from core.src.file_parser import extract_repo_name_from_url
 
+try:
+    # Try Docker/installed package path first
+    from core.src.config import setup_logging
+except ImportError:
+    # Fallback to development path
+    from packages.core.src.config import setup_logging
+
 from app.config import settings
 from app.db.models import AnalysisTask, Report
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+# Configure logging using centralized setup
+setup_logging(settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 
@@ -40,8 +44,6 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         github_url: GitHub repository URL
         options: Analysis options
     """
-    logger.info(f"Starting analysis for task {task_id}: {github_url}")
-
     # Create DB engine and session
     engine = create_engine(settings.DATABASE_URL.replace("+aiosqlite", ""))
     Session = sessionmaker(bind=engine)
@@ -59,7 +61,6 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         db.commit()
 
         # Step 1: Fetch repository content
-        logger.info(f"Fetching repository: {github_url}")
         repo_name, repo_data = fetch_single_repository(
             github_url, include_metrics=True, github_token=settings.GITHUB_TOKEN
         )
@@ -76,7 +77,6 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         db.commit()
 
         # Step 2: Analyze repository
-        logger.info(f"Analyzing repository: {repo_name}")
         code_digest = repo_data["content"]
         metrics = repo_data.get("metrics", {})
 
@@ -90,8 +90,6 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
             model = "gemini-2.5-flash-preview-04-17"  # Fast model
         elif analysis_type == "deep":
             model = "gemini-2.5-pro-preview-03-25"  # Deep model
-
-        logger.info(f"Using model {model} for {analysis_type} analysis")
 
         # Update the task's analysis_type field
         task.analysis_type = analysis_type
@@ -112,8 +110,6 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         else:
             prompt_path = prompt_option
 
-        logger.info(f"Using prompt file: {prompt_path}")
-
         analysis = analyze_single_repository(
             repo_name,
             code_digest,
@@ -129,8 +125,6 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
         db.commit()
 
         # Step 3: Create report
-        logger.info(f"Creating report for: {repo_name}")
-
         # Extract scores from the markdown analysis
         if not isinstance(analysis, str):
             logger.error(f"Unexpected analysis result type: {type(analysis)}")
@@ -148,9 +142,7 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
 
                     analysis_text = f"Error: Received JSON instead of markdown:\n```json\n{json.dumps(analysis, indent=2)}\n```"
                 except Exception:
-                    analysis_text = (
-                        "Error: Failed to generate report. Please try again."
-                    )
+                    analysis_text = "Error: Failed to generate report. Please try again."
         else:
             # Already a string
             analysis_text = analysis
@@ -181,8 +173,6 @@ def analyze_repository(task_id: str, github_url: str, options: dict):
 
         # Commit all changes
         db.commit()
-
-        logger.info(f"Analysis completed for task {task_id}")
 
     except Exception as e:
         logger.error(f"Error analyzing repository for task {task_id}: {str(e)}")
@@ -215,11 +205,7 @@ def extract_scores(analysis):
         return {"overall": 0}
 
     # Special case for markdown content - try to extract scores from markdown tables
-    if (
-        "type" in analysis
-        and analysis["type"] == "markdown"
-        and "raw_markdown" in analysis
-    ):
+    if "type" in analysis and analysis["type"] == "markdown" and "raw_markdown" in analysis:
         return extract_scores_from_markdown(analysis["raw_markdown"])
 
     # Check if this is an error object

@@ -287,17 +287,9 @@ def fetch_single_repository(
     repo_name = get_repo_name(normalized_url)
     result = {"content": "", "metrics": {}}
 
-    logger.info(f"Fetching repository content: {repo_name} ({normalized_url})")
-
     try:
         # Use gitingest to fetch the repository content
-        summary, tree, content = ingest(
-            normalized_url, exclude_patterns=exclude_patterns_set
-        )
-
-        # Log summary information
-        logger.info(f"Successfully fetched {repo_name} content")
-        logger.debug(f"Repository summary: {len(content)} characters")
+        summary, tree, content = ingest(normalized_url, exclude_patterns=exclude_patterns_set)
 
         # Store the content in our results dictionary
         result["content"] = content
@@ -309,14 +301,12 @@ def fetch_single_repository(
 
     # Fetch GitHub metrics if requested
     if include_metrics:
-        logger.info(f"Fetching GitHub metrics for repository: {repo_name}")
         try:
             metrics_data = fetch_github_metrics([normalized_url], github_token)
 
             # Add metrics to result
             if repo_name in metrics_data:
                 result["metrics"] = metrics_data[repo_name]
-                logger.info(f"Added metrics for {repo_name}")
             else:
                 # Look for potential repo name mismatches
                 for metrics_repo_name, metrics in metrics_data.items():
@@ -325,9 +315,6 @@ def fetch_single_repository(
                         or metrics_repo_name.lower() in repo_name.lower()
                     ):
                         result["metrics"] = metrics
-                        logger.info(
-                            f"Added metrics for {repo_name} (matched from {metrics_repo_name})"
-                        )
                         break
         except Exception as e:
             logger.error(f"Error fetching metrics for {repo_name}: {str(e)}")
@@ -355,10 +342,7 @@ def fetch_repositories(
 
     # Process each repository individually
     for url in repo_urls:
-        repo_name, repo_data = fetch_single_repository(
-            url, include_metrics, github_token
-        )
+        repo_name, repo_data = fetch_single_repository(url, include_metrics, github_token)
         results[repo_name] = repo_data
 
-    logger.info(f"Fetched data for {len(results)} repositories successfully")
     return results
