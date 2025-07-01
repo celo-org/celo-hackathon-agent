@@ -1,4 +1,4 @@
-version: "3.8"
+# Removed version as it's obsolete in newer docker-compose
 
 services:
   # ===============================
@@ -102,24 +102,7 @@ services:
       - analyzer-network
     restart: unless-stopped
 
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/frontend/Dockerfile
-      target: development
-    container_name: analyzer-frontend
-    environment:
-      - VITE_API_URL=http://localhost:8000/api
-    volumes:
-      - ./packages/frontend:/app
-      - /app/node_modules
-    ports:
-      - "5173:5173"
-    depends_on:
-      - api
-    networks:
-      - analyzer-network
-    restart: unless-stopped
+  # Frontend runs directly via npm, not in Docker
 
   # ===============================
   # MONITORING & UTILITIES
@@ -156,32 +139,7 @@ services:
     profiles:
       - admin
 
-  # ===============================
-  # TESTING SERVICE
-  # ===============================
-  test-runner:
-    build:
-      context: .
-      dockerfile: docker/api/Dockerfile
-      target: development
-    container_name: analyzer-test-runner
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/analyzer_test_db
-      - REDIS_URL=redis://redis:6379/1
-      - GOOGLE_API_KEY=test_key
-      - JWT_SECRET=test_secret
-    volumes:
-      - .:/app
-    command: ["./scripts/test.sh", "--coverage"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - analyzer-network
-    profiles:
-      - test
+  # Testing is handled via 'make test' command
 
 # ===============================
 # VOLUMES

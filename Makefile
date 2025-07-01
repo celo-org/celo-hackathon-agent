@@ -12,6 +12,7 @@ help:
 	@echo "  build       Build all packages"
 	@echo "  docker-up   Start Docker services"
 	@echo "  docker-down Stop Docker services"
+	@echo "  stop        Stop development environment"
 
 # Install all packages
 install:
@@ -42,9 +43,16 @@ clean:
 # Start development environment
 dev:
 	@echo "🚀 Starting development environment..."
-	@echo "API: http://localhost:8000"
-	@echo "Frontend: http://localhost:5173"
+	@echo "Starting backend services..."
 	@docker-compose up -d
+	@echo "Starting frontend..."
+	@cd packages/frontend && npm run dev &
+	@echo ""
+	@echo "✅ Development environment started:"
+	@echo "  API: http://localhost:8000"
+	@echo "  Frontend: http://localhost:5173"
+	@echo ""
+	@echo "To stop: make stop"
 
 # Build packages
 build:
@@ -61,3 +69,10 @@ docker-up:
 
 docker-down:
 	@docker-compose down
+
+# Stop development environment
+stop:
+	@echo "🛑 Stopping development environment..."
+	@docker-compose down
+	@pkill -f "vite" 2>/dev/null || true
+	@echo "✅ Development environment stopped"
