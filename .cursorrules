@@ -1,50 +1,346 @@
 # AI Project Analyzer - Cursor Rules
 
-This file provides context and rules for Cursor AI when working with this codebase.
+## Project Overview
 
-## Codebase Overview
+This is a monorepo for an AI-powered GitHub repository analyzer using:
 
-This project is an AI-powered repository analyzer that uses LLMs (specifically Google Gemini) to evaluate GitHub repositories. It generates structured analysis reports with standardized scoring across multiple criteria.
+- **Backend**: Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, Redis, Google Gemini LLM
+- **Frontend**: React 18, TypeScript, Vite, TailwindCSS, Shadcn/ui
+- **Infrastructure**: Docker containers, background job processing
+- **Architecture**: Clean separation with packages (core, cli, api, frontend)
 
-Key components:
-- `src/fetcher.py`: Fetches repository content using the gitingest library
-- `src/analyzer.py`: Processes code digests through Gemini LLM
-- `src/reporter.py`: Generates and saves analysis reports
-- `src/config.py`: Handles environment configuration
-- `src/cli.py`: Provides command-line interface
-- `prompts/`: Contains analysis templates for different contexts
+## Global Rules
 
-## Core Workflows
+### File Organization
 
-1. User provides GitHub repository URLs
-2. System fetches repository content using gitingest
-3. LLM analyzes the code digest using specified prompt
-4. Reports are generated in timestamp-based directories
+- Follow monorepo structure: packages/{core,cli,api,frontend}/
+- Keep shared configuration in config/ directory
+- Use relative imports within packages, absolute imports across packages
+- Place Docker configs in docker/ directory
 
-## Coding Rules
+### Code Quality
 
-1. **Project Structure**
-   - Keep the current module organization
-   - Place all new prompts in the `prompts/` directory
+- Always include comprehensive error handling with try/catch blocks
+- Use meaningful variable names that describe the purpose
+- Write self-documenting code with clear intent
+- Never commit secrets, API keys, or sensitive data
+- Use environment variables for all configuration
 
-2. **Dependencies**
-   - Use Python 3.11+ features
-   - Manage dependencies in pyproject.toml
-   - Core dependencies: langchain, gitingest, typer
+### Testing
 
-3. **Code Style**
-   - Line length: 100 chars max
-   - Type hints: Required for all functions
-   - Error handling: Use try/except with specific exception types
-   - Logging: Use standard logging with appropriate levels
+- Write unit tests for all new functions and components
+- Include integration tests for API endpoints
+- Test error scenarios and edge cases
+- Use pytest for Python, Jest/Vitest for frontend
 
-4. **Documentation**
-   - Google-style docstrings for classes and functions
-   - Module-level docstrings explaining purpose
-   - Clear in-line comments for complex logic
+---
 
-5. **Best Practices**
-   - Separate concerns between modules
-   - Use batch processing for efficiency when possible
-   - Follow functional programming patterns where appropriate
-   - Implement robust error handling with retries
+## Python (Backend) Rules
+
+### Files: packages/{core,cli,api}/\*_/_.py
+
+#### Language & Style
+
+- Use Python 3.11+ features and syntax
+- Follow PEP 8 formatting (line length: 100 chars)
+- Use type hints for ALL function parameters and return values
+- Use Google-style docstrings for all public functions and classes
+- Prefer async/await for I/O operations
+
+#### FastAPI Patterns
+
+- Use dependency injection for shared resources (database, services)
+- Always validate request data with Pydantic models
+- Use proper HTTP status codes (200, 201, 400, 401, 404, 500)
+- Include comprehensive error handling with HTTPException
+- Use router-based organization (auth, analysis, reports, health)
+
+#### Database
+
+- Use async SQLAlchemy for all database operations
+- Always use UUID for primary keys
+- Handle database transactions with proper commit/rollback
+- Use Alembic for schema migrations
+- Never use raw SQL; use ORM for type safety
+
+#### Authentication & Security
+
+- Always validate JWT tokens before processing requests
+- Use dependency injection for authentication (get_current_user)
+- Hash passwords with bcrypt (never store plaintext)
+- Validate all user input to prevent injection attacks
+- Use proper CORS configuration
+
+#### Logging
+
+- Use logger.debug() for detailed development information
+- Use logger.info() sparingly for important events only
+- Use logger.warning() for recoverable issues
+- Use logger.error() for failures that need attention
+- Always include context in log messages (user_id, task_id, etc.)
+
+#### Services & Architecture
+
+- Separate business logic into service classes
+- Use dependency injection pattern for services
+- Keep routers thin (validation + service calls)
+- Put complex business logic in core package
+- Use background tasks for long-running operations
+
+#### Example Pattern:
+
+```python
+async def create_analysis_task(
+    analysis_data: AnalysisSubmissionRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    analysis_service: AnalysisService = Depends(get_analysis_service),
+) -> AnalysisTaskResponse:
+    """
+    Create analysis task with proper validation and error handling.
+
+    Args:
+        analysis_data: Validated request data
+        current_user: Authenticated user from JWT
+        analysis_service: Injected service dependency
+
+    Returns:
+        AnalysisTaskResponse: Created task details
+
+    Raises:
+        HTTPException: For validation or business logic errors
+    """
+    try:
+        logger.debug(f"Creating analysis task for user {current_user.id}")
+        task = await analysis_service.create_task(analysis_data, current_user.id)
+        return AnalysisTaskResponse.from_orm(task)
+    except ValueError as e:
+        logger.warning(f"Invalid analysis data: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to create analysis task: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+```
+
+---
+
+## React/TypeScript (Frontend) Rules
+
+### Files: packages/frontend/src/\*_/_.{ts,tsx}
+
+#### Language & Framework
+
+- Use React 18 with functional components only (no class components)
+- Use TypeScript with strict type checking
+- Use hooks for state management (useState, useEffect, useContext)
+- Prefer custom hooks for reusable logic
+- Use React Query for server state management
+
+#### Component Patterns
+
+- Create reusable components in components/ui/ directory
+- Use Shadcn/ui components as the foundation
+- Implement proper loading and error states for all async operations
+- Use path aliases (@/) for imports
+- Follow consistent naming: PascalCase for components, camelCase for functions
+
+#### State Management
+
+- Use React Context for global state (auth, theme)
+- Use React Query for server state (API calls)
+- Use useState for local component state
+- Avoid prop drilling; use context when needed
+
+#### Styling & UI
+
+- Use TailwindCSS utility classes exclusively
+- Support dark/light theme switching
+- Implement responsive design (mobile-first approach)
+- Use Shadcn/ui components for consistency
+- Never use inline styles; prefer Tailwind classes
+
+#### API Integration
+
+- Use Axios with interceptors for authentication
+- Handle loading, error, and success states
+- Use TypeScript interfaces for API responses
+- Implement proper error boundaries
+- Never hard-code API URLs; use environment variables
+
+#### Forms & Validation
+
+- Use React Hook Form for form management
+- Implement client-side validation with Zod or similar
+- Show real-time validation feedback
+- Handle form submission errors gracefully
+- Use proper accessibility attributes
+
+#### Example Pattern:
+
+```typescript
+interface AnalysisFormProps {
+  onSubmit: (data: AnalysisRequest) => Promise<void>;
+  isLoading: boolean;
+}
+
+const AnalysisForm: React.FC<AnalysisFormProps> = ({ onSubmit, isLoading }) => {
+  const [url, setUrl] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    try {
+      await onSubmit({ github_url: url });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="github-url">GitHub Repository URL</Label>
+        <Input
+          id="github-url"
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://github.com/owner/repo"
+          required
+          disabled={isLoading}
+        />
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" disabled={isLoading || !url}>
+        {isLoading ? "Analyzing..." : "Analyze Repository"}
+      </Button>
+    </form>
+  );
+};
+```
+
+---
+
+## Docker & Infrastructure Rules
+
+### Files: docker/\*_, Dockerfile, docker-compose_.yml
+
+#### Container Configuration
+
+- Use multi-stage builds for production optimization
+- Pin specific image versions (no :latest tags)
+- Use non-root users for security
+- Set proper health checks for all services
+- Use .dockerignore to exclude unnecessary files
+
+#### Environment & Secrets
+
+- Use environment variables for all configuration
+- Never embed secrets in Dockerfiles
+- Use docker-compose secrets for sensitive data
+- Set proper environment variables for development vs production
+- Use volume mounts for development hot reload
+
+#### Development Workflow
+
+- Ensure hot reload works for both backend and frontend
+- Use named volumes for persistent data (postgres, redis)
+- Configure proper networking between services
+- Set appropriate restart policies
+
+---
+
+## Configuration & DevOps Rules
+
+### Files: config/\*_, _.env\*, Makefile
+
+#### Environment Management
+
+- Use .env files for local development
+- Provide .env.template with all required variables
+- Use different configurations for dev/staging/production
+- Document all environment variables with comments
+- Validate required environment variables at startup
+
+#### Build & Deployment
+
+- Use uv for Python dependency management
+- Use npm/pnpm for frontend dependencies
+- Implement proper CI/CD pipeline validation
+- Use semantic versioning for releases
+- Automate database migrations in deployment
+
+---
+
+## Security Rules (All Files)
+
+#### Authentication & Authorization
+
+- Always validate user permissions before data access
+- Use proper JWT token validation
+- Implement rate limiting for API endpoints
+- Validate all input data (no trust in client-side validation)
+- Use HTTPS in production environments
+
+#### Data Protection
+
+- Never log sensitive information (passwords, tokens)
+- Use parameterized queries to prevent SQL injection
+- Sanitize user input before processing
+- Implement proper session management
+- Use secure cookie settings
+
+---
+
+## Common Anti-Patterns to Avoid
+
+#### Backend
+
+- Don't use synchronous operations for I/O
+- Don't mix business logic in route handlers
+- Don't use raw SQL queries
+- Don't store sensitive data in logs
+- Don't ignore database transaction management
+
+#### Frontend
+
+- Don't use class components
+- Don't store sensitive data in localStorage
+- Don't make API calls directly in components
+- Don't ignore accessibility requirements
+- Don't hardcode UI text (consider i18n)
+
+#### General
+
+- Don't commit node_modules, **pycache**, or build artifacts
+- Don't use console.log in production code
+- Don't ignore TypeScript errors
+- Don't skip error handling
+- Don't violate the single responsibility principle
+
+---
+
+## Performance Considerations
+
+#### Backend
+
+- Use database indexes for frequently queried fields
+- Implement proper pagination for large datasets
+- Use background tasks for expensive operations
+- Cache frequently accessed data with Redis
+- Monitor and optimize database query performance
+
+#### Frontend
+
+- Implement code splitting and lazy loading
+- Optimize images and static assets
+- Use React.memo for expensive components
+- Implement proper caching strategies
+- Monitor and optimize bundle sizes
