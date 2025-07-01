@@ -171,6 +171,8 @@ async def get_analysis_task(
     Returns:
         AnalysisTaskResponse: Analysis task status
     """
+    logger.debug(f"[DEBUG] Getting task {task_id} for user {current_user.id}")
+
     # Get task
     task = await analysis_service.get_task(
         task_id=task_id,
@@ -179,13 +181,18 @@ async def get_analysis_task(
 
     # Check if task exists
     if not task:
+        logger.warning(f"[DEBUG] Task {task_id} not found for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Analysis task not found",
         )
 
+    logger.debug(
+        f"[DEBUG] Task found - ID: {task.id}, Status: {task.status}, Progress: {task.progress}"
+    )
+
     # Convert to response schema
-    return {
+    response = {
         "task_id": str(task.id),
         "status": task.status,
         "github_url": task.github_url,
@@ -195,6 +202,9 @@ async def get_analysis_task(
         "completed_at": task.completed_at,
         "analysis_type": task.analysis_type or "fast",
     }
+
+    logger.debug(f"[DEBUG] Returning response: {response}")
+    return response
 
 
 @router.delete("/tasks/{task_id}/cancel", response_model=AnalysisTaskResponse)

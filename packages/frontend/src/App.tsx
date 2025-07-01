@@ -1,74 +1,155 @@
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import {
-  BrowserRouter,
   Navigate,
-  Outlet,
   Route,
+  BrowserRouter as Router,
   Routes,
 } from "react-router-dom";
-import { AuthProvider, useAuth } from "./context/auth-context";
-import { ThemeProvider } from "./context/theme-context";
-import Auth from "./pages/Auth";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import ReportDetail from "./pages/ReportDetail";
-import Reports from "./pages/Reports";
+import { Toaster } from "sonner";
 
-const queryClient = new QueryClient();
+// Contexts
+import { AuthProvider, useAuth } from "@/context/auth-context";
+import { ThemeProvider } from "@/context/theme-context";
 
-// ProtectedRoute component to guard routes that require authentication
-const ProtectedRoute = () => {
+// Pages
+import Auth from "@/pages/Auth";
+import Chat from "@/pages/Chat";
+import Index from "@/pages/Index";
+import NotFound from "@/pages/NotFound";
+import ReportDetail from "@/pages/ReportDetail";
+import Reports from "@/pages/Reports";
+
+// Protected Route Component
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const { isAuthenticated, isLoading } = useAuth();
 
-  // If auth is still loading, show nothing (or could add a spinner here)
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
 
-  // If not authenticated, redirect to login
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  // Otherwise, render the child routes
-  return <Outlet />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
 };
 
-const App = () => (
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="system">
-        <TooltipProvider>
-          <AuthProvider>
-            <BrowserRouter>
-              <Toaster />
-              <Sonner />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<Auth />} />
+// Public Route Component (redirects to chat if authenticated)
+const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
 
-                {/* Protected routes */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/reports" element={<Reports />} />
-                  <Route path="/reports/:id" element={<ReportDetail />} />
-                </Route>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </AuthProvider>
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
-  </React.StrictMode>
-);
+  return isAuthenticated ? <Navigate to="/chat" replace /> : <>{children}</>;
+};
+
+// Home Route Component (shows landing page for unauthenticated, redirects to chat for authenticated)
+const HomeRoute: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <Navigate to="/chat" replace /> : <Index />;
+};
+
+function App() {
+  return (
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-background font-sans antialiased">
+            <Routes>
+              {/* Home Route - shows landing page or redirects to chat */}
+              <Route path="/" element={<HomeRoute />} />
+
+              {/* Public Routes */}
+              <Route
+                path="/auth"
+                element={
+                  <PublicRoute>
+                    <Auth />
+                  </PublicRoute>
+                }
+              />
+
+              {/* Protected Routes */}
+              <Route
+                path="/chat"
+                element={
+                  <ProtectedRoute>
+                    <Chat />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chat/:id"
+                element={
+                  <ProtectedRoute>
+                    <Chat />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute>
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports/:id"
+                element={
+                  <ProtectedRoute>
+                    <ReportDetail />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* 404 Route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+
+            {/* Global Toast Notifications */}
+            <Toaster
+              position="top-right"
+              expand={false}
+              richColors
+              closeButton
+              toastOptions={{
+                duration: 5000,
+                style: {
+                  background: "hsl(var(--background))",
+                  color: "hsl(var(--foreground))",
+                  border: "1px solid hsl(var(--border))",
+                },
+              }}
+            />
+          </div>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
 
 export default App;

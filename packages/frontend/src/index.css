@@ -5,77 +5,76 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 240 5.9% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 240 5.9% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover-foreground: 240 5.9% 10%;
 
-    --primary: 240 5.9% 10%;
+    --primary: 220 91% 52%;
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 220 14.3% 95.9%;
+    --secondary-foreground: 220 8.9% 46.1%;
 
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
 
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220 8.9% 46.1%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 10% 60%;
 
-    --radius: 0.5rem;
+    --radius: 8px;
 
-    /* Custom colors */
-    --custom-yellow: 0 0% 95%;
-    --custom-green: 0 0% 20%;
-    --custom-cream: 0 0% 95%;
-    --custom-light-gray: 0 0% 85%;
-
-    /* Analyzer specific */
-    --analyzer-red: 0 100% 65%;
-    --analyzer-green: 0 0% 80%;
-    --analyzer-cream: 0 0% 95%;
-    --analyzer-gray: 0 0% 90%;
-    --analyzer-dark: 0 0% 10%;
+    /* Vercel-inspired colors for light mode */
+    --vercel-bg: 0 0% 100%;
+    --vercel-fg: 0 0% 9%;
+    --vercel-muted: 0 0% 96%;
+    --vercel-border: 0 0% 91%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --background: 0 0% 4%; /* Very dark like Vercel */
+    --foreground: 0 0% 95%;
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 95%;
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 6%;
+    --popover-foreground: 0 0% 95%;
 
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 220 91% 52%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 0 0% 8%;
+    --secondary-foreground: 0 0% 95%;
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 0 0% 8%;
+    --muted-foreground: 0 0% 64%;
 
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 0 0% 8%;
+    --accent-foreground: 0 0% 95%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
+    --ring: 220 30% 80%;
+
+    /* Vercel-inspired dark colors */
+    --vercel-bg: 0 0% 4%;
+    --vercel-fg: 0 0% 95%;
+    --vercel-muted: 0 0% 8%;
+    --vercel-border: 0 0% 12%;
   }
 }
 
@@ -87,7 +86,9 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    font-family: "Roboto", sans-serif;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    line-height: 1.5;
   }
 
   html {
@@ -96,55 +97,168 @@
 }
 
 @layer components {
-  .analyzer-container {
-    @apply container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  .linear-container {
+    @apply max-w-7xl mx-auto px-6;
   }
 
-  .text-gradient {
-    @apply text-foreground;
+  .linear-sidebar {
+    @apply w-64 h-screen fixed left-0 top-0 bg-background border-r border-border flex flex-col;
   }
 
-  .section-container {
-    @apply py-16 md:py-24;
+  .linear-main {
+    @apply ml-64 min-h-screen bg-background;
   }
 
-  .dark-card {
-    @apply bg-card border border-border rounded-lg p-6;
+  .linear-card {
+    @apply bg-card border border-border rounded-lg shadow-sm;
+  }
+
+  .linear-button-primary {
+    @apply bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-md font-medium transition-colors;
+  }
+
+  .linear-button-ghost {
+    @apply hover:bg-accent hover:text-accent-foreground px-3 py-2 rounded-md font-medium transition-colors;
+  }
+
+  .linear-input {
+    @apply bg-background border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent;
+  }
+
+  .linear-text-heading {
+    @apply text-xl font-semibold text-foreground;
+  }
+
+  .linear-text-body {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .linear-spacing {
+    @apply space-y-4;
+  }
+
+  .linear-spacing-lg {
+    @apply space-y-6;
   }
 }
 
 /* Custom styles for markdown content */
-.custom-markdown p code,
-.custom-markdown li code,
-.custom-markdown h1 code,
-.custom-markdown h2 code,
-.custom-markdown h3 code,
-.custom-markdown h4 code,
-.custom-markdown h5 code,
-.custom-markdown h6 code {
+.markdown-content {
+  @apply prose prose-slate dark:prose-invert max-w-none;
+}
+
+.markdown-content p code,
+.markdown-content li code,
+.markdown-content h1 code,
+.markdown-content h2 code,
+.markdown-content h3 code,
+.markdown-content h4 code,
+.markdown-content h5 code,
+.markdown-content h6 code {
   @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono inline;
 }
 
-.custom-markdown table {
+.markdown-content table {
   @apply w-full border-collapse;
 }
 
-.custom-markdown thead {
+.markdown-content thead {
   @apply bg-muted;
 }
 
-.custom-markdown th {
+.markdown-content th {
   @apply text-left p-3 font-bold text-foreground;
 }
 
-.custom-markdown td {
+.markdown-content td {
   @apply p-3 border-b border-border;
 }
 
-.custom-markdown pre {
-  @apply my-4 rounded-md overflow-x-auto bg-[rgb(30,30,30)];
+.markdown-content pre {
+  @apply my-4 rounded-md overflow-x-auto bg-muted;
 }
 
-.custom-markdown pre code {
-  @apply block p-4 text-sm bg-transparent;
+.markdown-content pre code {
+  @apply block p-4 text-sm bg-transparent text-foreground;
+}
+
+.markdown-content code {
+  @apply text-sm font-mono bg-muted/50 rounded px-1;
+}
+
+.markdown-content blockquote {
+  @apply border-l-4 border-primary pl-4 italic text-muted-foreground;
+}
+
+.markdown-content table {
+  @apply w-full border-collapse border border-border;
+}
+
+.markdown-content th,
+.markdown-content td {
+  @apply border border-border px-4 py-2;
+}
+
+.markdown-content th {
+  @apply bg-muted font-semibold;
+}
+
+/* Linear utility classes for consistent styling */
+.linear-main {
+  @apply flex-1 bg-background;
+  max-width: calc(100vw - 256px);
+}
+
+/* Code block styling */
+.code-block {
+  @apply relative rounded-lg bg-muted border border-border;
+}
+
+.code-block-header {
+  @apply flex items-center justify-between px-4 py-2 border-b border-border bg-muted/50;
+}
+
+.code-block-content {
+  @apply p-4 overflow-x-auto;
+}
+
+/* Loading animations */
+.skeleton {
+  @apply animate-pulse bg-muted rounded;
+}
+
+.shimmer {
+  @apply relative overflow-hidden;
+}
+
+.shimmer::after {
+  @apply absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent;
+  content: "";
+}
+
+/* Scrollbar styling */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Glass effect utilities */
+.glass {
+  @apply backdrop-blur-md bg-background/80 border border-border/50;
+}
+
+.glass-strong {
+  @apply backdrop-blur-lg bg-background/90 border border-border;
 }
