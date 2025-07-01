@@ -32,19 +32,31 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+# Silence noisy loggers when not in DEBUG mode
+if log_level > logging.DEBUG:
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+# Always silence these very noisy loggers regardless of log level
+logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
+logging.getLogger("app.db.session").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 
 def start_api():
     """Start the FastAPI server."""
-    logger.info("Starting API server...")
+    logger.debug("Starting API server...")
 
     # Get configuration from environment variables
     host = os.getenv("API_HOST", "0.0.0.0")
     port = int(os.getenv("API_PORT", "8000"))
     reload = os.getenv("DEBUG", "False").lower() == "true"
 
-    logger.info(f"Server will run on {host}:{port} (reload={reload})")
+    logger.debug(f"Server will run on {host}:{port} (reload={reload})")
 
     # Start the server
     uvicorn.run(

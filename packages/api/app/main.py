@@ -4,19 +4,33 @@ Main application module for the API server.
 
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, analysis, reports, health
 from app.db.session import create_db_and_tables
-
+from app.routers import analysis, auth, health, reports
 
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+# Silence noisy loggers when not in DEBUG mode
+if getattr(logging, settings.LOG_LEVEL) > logging.DEBUG:
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.dialects").setLevel(logging.WARNING)
+    logging.getLogger("alembic").setLevel(logging.WARNING)
+
+# Always silence these noisy loggers regardless of log level
+logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
+logging.getLogger("app.db.session").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -27,15 +41,15 @@ async def lifespan(app: FastAPI):
     This is executed before the application starts and after it shuts down.
     """
     # Startup: create database tables
-    logger.info("Creating database tables if they don't exist...")
+    logger.debug("Creating database tables if they don't exist...")
     await create_db_and_tables()
 
     # Start application
-    logger.info("Application startup complete")
+    logger.debug("Application startup complete")
     yield
 
     # Shutdown
-    logger.info("Application shutdown")
+    logger.debug("Application shutdown")
 
 
 # Create FastAPI application

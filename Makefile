@@ -10,6 +10,10 @@ help:
 	@echo "  clean       Clean build artifacts"
 	@echo "  dev         Start backend development (API + Worker in Docker)"
 	@echo "  dev-frontend Start frontend development only"
+	@echo "  logs        View API and worker logs"
+	@echo "  logs-api    View API logs only"
+	@echo "  logs-worker View worker logs only"
+	@echo "  logs-all    View all service logs"
 	@echo "  build       Build all packages"
 	@echo "  docker-up   Start Docker services"
 	@echo "  docker-down Stop Docker services"
@@ -44,7 +48,7 @@ clean:
 # Start backend development (API + Worker in Docker with hot reload)
 dev:
 	@echo "🚀 Starting backend development environment..."
-	@echo "Building and starting all backend services..."
+	@echo "Building and starting all backend services in detached mode..."
 	@docker-compose up postgres redis api worker -d
 	@echo "Waiting for services to be ready..."
 	@sleep 8
@@ -56,17 +60,19 @@ dev:
 	@echo "  Database: PostgreSQL (Docker)"
 	@echo "  Redis: Redis (Docker)"
 	@echo ""
-	@echo "To stop: make stop"
+	@echo "📋 Useful commands:"
+	@echo "  make logs      - View API and worker logs"
+	@echo "  make logs-api  - View API logs only"
+	@echo "  make logs-worker - View worker logs only"
+	@echo "  make stop      - Stop all services"
 
 # Start frontend development only
 dev-frontend:
 	@echo "🚀 Starting frontend development..."
-	@cd packages/frontend && pnpm dev &
+	@echo "  Frontend will start at: http://localhost:5173"
+	@echo "  Press Ctrl+C to stop"
 	@echo ""
-	@echo "✅ Frontend development started:"
-	@echo "  Frontend: http://localhost:5173 (with hot reload)"
-	@echo ""
-	@echo "To stop: make stop"
+	@cd packages/frontend && pnpm dev
 
 # Build packages
 build:
@@ -83,6 +89,26 @@ docker-up:
 
 docker-down:
 	@docker-compose down
+
+# View logs from API and worker services
+logs:
+	@echo "📋 Showing logs for API and Worker services..."
+	@docker-compose logs -f api worker
+
+# View API logs only
+logs-api:
+	@echo "📋 Showing API logs..."
+	@docker-compose logs -f api
+
+# View worker logs only
+logs-worker:
+	@echo "📋 Showing worker logs..."
+	@docker-compose logs -f worker
+
+# View all service logs
+logs-all:
+	@echo "📋 Showing logs for all services..."
+	@docker-compose logs -f
 
 # Stop development environment
 stop:

@@ -55,6 +55,9 @@ async def submit_analysis(
     Returns:
         AnalysisSubmissionResponse: Analysis task status
     """
+    logger.debug(f"Analysis submission request from user {current_user.username}")
+    logger.debug(f"Request data: {analysis_data}")
+
     # Validate GitHub URLs
     if not analysis_data.github_urls or len(analysis_data.github_urls) == 0:
         raise HTTPException(
@@ -67,11 +70,14 @@ async def submit_analysis(
     github_url = analysis_data.github_urls[0]
 
     # Validate GitHub URL
+    logger.debug(f"Validating GitHub URL: {github_url}")
     if not validate_github_url(github_url):
+        logger.warning(f"Invalid GitHub URL submitted: {github_url}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid GitHub repository URL",
         )
+    logger.debug(f"GitHub URL validation passed: {github_url}")
 
     # Create options dictionary
     options = {}

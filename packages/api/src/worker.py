@@ -36,6 +36,11 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+# Silence noisy loggers when not in DEBUG mode
+if log_level > logging.DEBUG:
+    logging.getLogger("rq.worker").setLevel(logging.WARNING)
+    logging.getLogger("rq.queue").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +74,7 @@ def main():
 
     # Parse queue names
     queue_names = [q.strip() for q in args.listen.split(",")]
-    logger.info(f"Starting worker listening on queues: {', '.join(queue_names)}")
+    logger.debug(f"Starting worker listening on queues: {', '.join(queue_names)}")
 
     # Start worker
     queues = [Queue(name=name, connection=redis_conn) for name in queue_names]
