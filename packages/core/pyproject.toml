@@ -16,7 +16,7 @@ dependencies = [
     "langchain>=0.1.0",
     "langchain-google-genai>=1.0.0",
     "python-dotenv>=1.0.0",
-    "gitingest>=0.1.12",
+    "gitingest>=0.1.4",
     "rich>=13.0.0",
     "loguru>=0.7.0",
     "PyGithub>=1.59.0",
@@ -27,6 +27,10 @@ dependencies = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
 
 # Package-specific development dependencies (shared ones are in workspace root)
 [project.optional-dependencies]
