@@ -26,12 +26,7 @@ load_dotenv(dotenv_path=env_path)
 sys.path.insert(0, str(project_root))
 
 # Import centralized logging setup
-try:
-    # Try Docker/installed package path first
-    from core.src.config import setup_logging
-except ImportError:
-    # Fallback to development path
-    from packages.core.src.config import setup_logging
+from config import setup_logging
 
 # Configure logging using centralized setup
 log_level_name = os.getenv("LOG_LEVEL", "INFO")

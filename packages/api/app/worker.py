@@ -13,18 +13,13 @@ from sqlalchemy.orm import sessionmaker
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.src.analyzer import analyze_single_repository
+# Import core modules - direct imports from installed packages
+from analyzer import analyze_single_repository
 
-# Import CLI analysis tools from core package
-from core.src.fetcher import fetch_single_repository
-from core.src.file_parser import extract_repo_name_from_url
-
-try:
-    # Try Docker/installed package path first
-    from core.src.config import setup_logging
-except ImportError:
-    # Fallback to development path
-    from packages.core.src.config import setup_logging
+# Import logging setup from installed package
+from config import setup_logging
+from fetcher import fetch_single_repository
+from file_parser import extract_repo_name_from_url
 
 from app.config import settings
 from app.db.models import AnalysisTask, Report

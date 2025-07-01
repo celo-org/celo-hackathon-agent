@@ -19,18 +19,17 @@ os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+# Add packages/api to path so app.* imports work
+api_package_path = project_root / "packages" / "api"
+sys.path.insert(0, str(api_package_path))
+
 # Load environment variables
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # Import centralized logging setup
-try:
-    # Try Docker/installed package path first
-    from core.src.config import setup_logging
-except ImportError:
-    # Fallback to development path
-    from packages.core.src.config import setup_logging
+from config import setup_logging
 
 # Configure logging using centralized setup
 log_level_name = os.getenv("LOG_LEVEL", "INFO")

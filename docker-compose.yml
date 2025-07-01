@@ -57,6 +57,8 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - JWT_SECRET=${JWT_SECRET:-dev_secret_key}
+      - PYTHONPATH=/app
+      - WATCHDOG_POLLING=True
     volumes:
       - .:/app
       - /app/packages/frontend/node_modules
@@ -68,6 +70,7 @@ services:
       redis:
         condition: service_healthy
     command: ["python", "packages/api/src/api.py"]
+    # Hot reload is already enabled via uvicorn reload=True in api.py
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -91,9 +94,16 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - JWT_SECRET=${JWT_SECRET:-dev_secret_key}
+      - PYTHONPATH=/app
+      - WATCHDOG_POLLING=True
     volumes:
       - .:/app
-    command: ["python", "packages/api/src/worker.py"]
+    command:
+      [
+        "sh",
+        "-c",
+        "while true; do python packages/api/src/worker.py; echo 'Worker crashed, restarting in 5 seconds...'; sleep 5; done",
+      ]
     depends_on:
       postgres:
         condition: service_healthy

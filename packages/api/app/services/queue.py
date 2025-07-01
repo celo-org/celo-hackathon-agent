@@ -31,11 +31,9 @@ class QueueService:
         Returns:
             str: Job ID
         """
-        # Add job to queue
-        from app.worker import analyze_repository
-
+        # Add job to queue - use app path (worker has packages/api in sys.path)
         job = self.queue.enqueue(
-            analyze_repository,
+            "app.worker.analyze_repository",
             args=(task_id, github_url, options),
             job_id=task_id,
             result_ttl=86400,  # Store result for 24 hours

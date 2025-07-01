@@ -12,7 +12,7 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.schema import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from .config import get_gemini_api_key
+from config import get_gemini_api_key
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from gitingest import ingest
 
-from .metrics import fetch_github_metrics
+from metrics import fetch_github_metrics
 
 logger = logging.getLogger(__name__)
 
