@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from dotenv import load_dotenv
-from pydantic import PostgresDsn, RedisDsn, field_validator
+from pydantic import RedisDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load environment variables from root .env file
@@ -26,9 +26,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
     # Database settings
-    DATABASE_URL: PostgresDsn = os.getenv(
-        "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/analyzer_db"
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./analyzer_db.sqlite")
 
     # Redis settings
     REDIS_URL: RedisDsn = os.getenv("REDIS_URL", "redis://localhost:6379/0")

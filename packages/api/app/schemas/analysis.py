@@ -3,7 +3,8 @@ Analysis schemas for the API.
 """
 
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -25,6 +26,14 @@ class AnalysisCreate(BaseModel):
     options: Optional[AnalysisOptions] = None
 
 
+# Add missing schemas that the router expects
+class AnalysisSubmissionRequest(BaseModel):
+    """Schema for analysis submission request."""
+
+    github_urls: List[str] = Field(..., min_items=1)
+    options: Optional[AnalysisOptions] = None
+
+
 class AnalysisStatus(BaseModel):
     """Schema for analysis task status."""
 
@@ -41,6 +50,19 @@ class AnalysisStatus(BaseModel):
         from_attributes = True
 
 
+# Add missing response schemas
+class AnalysisSubmissionResponse(AnalysisStatus):
+    """Schema for analysis submission response."""
+
+    pass
+
+
+class AnalysisTaskResponse(AnalysisStatus):
+    """Schema for single analysis task response."""
+
+    pass
+
+
 class AnalysisTaskList(BaseModel):
     """Schema for listing analysis tasks."""
 
@@ -49,3 +71,9 @@ class AnalysisTaskList(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AnalysisTaskListResponse(AnalysisTaskList):
+    """Schema for analysis task list response."""
+
+    pass

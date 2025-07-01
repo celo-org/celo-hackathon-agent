@@ -4,12 +4,19 @@ Analysis router for the API.
 
 import logging
 
-# Import from core package
+# Import from installed core package
 import sys
 from pathlib import Path
+
+# Import from core package
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
+# Add the core package to the Python path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "core" / "src"))
+
+from file_parser import validate_github_url
 from sqlalchemy.future import select
 
 from app.db.models import AnalysisTask, User
@@ -21,12 +28,6 @@ from app.schemas.analysis import (
     AnalysisTaskResponse,
 )
 from app.services.analysis import AnalysisService, get_analysis_service
-from app.services.auth import get_current_user
-
-project_root = Path(__file__).parent.parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from core.src.file_parser import validate_github_url
 
 logger = logging.getLogger(__name__)
 
