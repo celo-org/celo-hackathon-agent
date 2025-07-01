@@ -1,5 +1,7 @@
 # Environment and API keys
 .env
+.env.local
+.env.*.local
 .venv/
 venv/
 env/
