@@ -38,6 +38,12 @@ ai-project-analyzer/
 - **Node.js 18+** (for frontend)
 - **Docker & Docker Compose** (for full stack)
 
+### CLI Command -
+
+```bash
+uv run packages/cli/src/main.py --input-file "./pos.csv" --output "./celo-reports-pos"
+```
+
 ### **1. Clone & Setup**
 
 ```bash
