@@ -12,7 +12,7 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.schema import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from config import get_gemini_api_key
+from .config import get_gemini_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +22,14 @@ AVAILABLE_MODELS = {
         "description": "Balanced model for most use cases",
         "max_tokens": 1000000,
     },
-    "gemini-2.5-flash-preview-04-17": {
+    "gemini-2.5-flash": {
         "description": "Balanced model for most use cases",
         "max_tokens": 1000000,
     },
 }
 
 # Default model to use
-DEFAULT_MODEL = "gemini-2.5-flash-preview-04-17"
+DEFAULT_MODEL = "gemini-2.5-flash"
 # Default temperature for generation
 DEFAULT_TEMPERATURE = 0.2
 # Maximum token limit (can be overridden by model-specific limits)

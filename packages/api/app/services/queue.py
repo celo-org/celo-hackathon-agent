@@ -31,6 +31,10 @@ class QueueService:
         Returns:
             str: Job ID
         """
+        logger.debug(f"[QUEUE_SERVICE] Enqueueing analysis job for task {task_id}")
+        logger.debug(f"[QUEUE_SERVICE] GitHub URL: {github_url}")
+        logger.debug(f"[QUEUE_SERVICE] Options: {options}")
+
         # Add job to queue - use app path (worker has packages/api in sys.path)
         job = self.queue.enqueue(
             "app.worker.analyze_repository",
@@ -39,6 +43,9 @@ class QueueService:
             result_ttl=86400,  # Store result for 24 hours
             timeout=3600,  # 1 hour timeout for long analyses
         )
+
+        logger.debug(f"[QUEUE_SERVICE] Job enqueued successfully. Job ID: {job.id}")
+        logger.debug(f"[QUEUE_SERVICE] Job status: {job.get_status()}")
 
         return job.id
 

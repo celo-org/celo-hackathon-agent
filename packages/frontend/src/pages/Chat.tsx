@@ -1,9 +1,22 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/context/auth-context";
 import { AnalysisTask, api, ApiError, Report } from "@/lib/api-client";
 import {
@@ -14,6 +27,7 @@ import {
   Clock,
   Code,
   ExternalLink,
+  Eye,
   FileText,
   GitBranch,
   MessageSquare,
@@ -22,6 +36,7 @@ import {
   Plus,
   Send,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -64,6 +79,10 @@ const Chat = () => {
   const [inputMessage, setInputMessage] = useState("");
 
   // UI state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  // UI state for analysis cards (removed from main component but kept for reference)
   const [analysisCards] = useState<AnalysisCard[]>([
     {
       id: "overview",
@@ -353,6 +372,33 @@ const Chat = () => {
     }
   };
 
+  // Handle task deletion
+  const handleDeleteTask = async (taskId: string) => {
+    setIsDeleting(taskId);
+    try {
+      console.log("[DEBUG] Deleting task:", taskId);
+      await api.analysis.deleteTask(taskId);
+
+      toast.success("Analysis deleted");
+
+      // Refresh user tasks
+      await fetchUserTasks();
+
+      // If we're currently viewing the deleted task, redirect to main chat
+      if (id === taskId) {
+        navigate("/chat");
+      }
+    } catch (error) {
+      console.error("[DEBUG] Error deleting task:", error);
+      const apiError = error as ApiError;
+      toast.error("Failed to delete analysis", {
+        description: apiError.detail || "Please try again",
+      });
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
@@ -458,7 +504,43 @@ const Chat = () => {
                       </p>
                     </div>
                     <div className="flex-shrink-0">
-                      <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-6 h-6 p-0"
+                          >
+                            <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/chat/${userTask.task_id}`);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Analysis
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTask(userTask.task_id);
+                            }}
+                            className="text-red-600 focus:text-red-600"
+                            disabled={isDeleting === userTask.task_id}
+                          >
+                            {isDeleting === userTask.task_id ? (
+                              <div className="w-4 h-4 mr-2 border-2 border-red-600/30 border-t-red-600 rounded-full animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4 mr-2" />
+                            )}
+                            Delete Analysis
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
 
@@ -623,36 +705,67 @@ const Chat = () => {
             </div>
 
             {task?.status === "completed" ? (
-              // Chat interface for completed tasks
-              <div className="flex-1 flex">
-                {/* Analysis Cards */}
-                <div className="w-80 border-r border-border bg-card/30 p-4">
-                  <h4 className="font-medium mb-4 text-sm text-muted-foreground uppercase tracking-wide">
-                    Quick Insights
-                  </h4>
-                  <div className="space-y-2">
-                    {analysisCards.map((card) => (
-                      <Button
-                        key={card.id}
-                        variant="ghost"
-                        className="w-full justify-start h-auto p-3 text-left"
-                        onClick={card.onClick}
+              // Chat interface for completed tasks (no more Quick Insights sidebar)
+              <div className="flex-1 flex flex-col">
+                {/* Report Summary Card */}
+                {report && (
+                  <div className="p-4 border-b border-border">
+                    <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                      <SheetTrigger asChild>
+                        <Card className="p-4 cursor-pointer hover:bg-accent/50 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-primary" />
+                              </div>
+                              <div>
+                                <h3 className="font-medium">Analysis Report</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  View detailed analysis and insights
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-right">
+                                <p className="text-sm font-medium">
+                                  Score: {report.scores?.overall || "N/A"}/10
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Click to view details
+                                </p>
+                              </div>
+                              <ArrowLeft className="w-4 h-4 rotate-180 text-muted-foreground" />
+                            </div>
+                          </div>
+                        </Card>
+                      </SheetTrigger>
+                      <SheetContent
+                        side="right"
+                        className="w-[60%] sm:w-full sm:max-w-full"
                       >
-                        <div className="flex items-start gap-3">
-                          <div className="p-1 bg-primary/10 rounded">
-                            {card.icon}
+                        <SheetHeader>
+                          <SheetTitle className="flex items-center gap-2">
+                            <FileText className="w-5 h-5" />
+                            Analysis Report
+                          </SheetTitle>
+                        </SheetHeader>
+                        <ScrollArea className="h-full pr-6 mt-6">
+                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                            {report.content?.markdown ? (
+                              <div className="whitespace-pre-wrap font-mono text-xs">
+                                {report.content.markdown}
+                              </div>
+                            ) : (
+                              <p className="text-muted-foreground">
+                                No detailed report available.
+                              </p>
+                            )}
                           </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{card.title}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {card.description}
-                            </p>
-                          </div>
-                        </div>
-                      </Button>
-                    ))}
+                        </ScrollArea>
+                      </SheetContent>
+                    </Sheet>
                   </div>
-                </div>
+                )}
 
                 {/* Chat Area */}
                 <div className="flex-1 flex flex-col">

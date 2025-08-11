@@ -20,7 +20,7 @@ TEMPERATURE_ENV = "TEMPERATURE"
 
 # Default values
 DEFAULT_LOG_LEVEL = "INFO"
-DEFAULT_MODEL = "gemini-2.5-flash-preview-04-17"
+DEFAULT_MODEL = "gemini-2.5-flash"
 DEFAULT_TEMPERATURE = 0.2
 
 

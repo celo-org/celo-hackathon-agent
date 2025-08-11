@@ -143,7 +143,7 @@ uv run python packages/cli/src/main.py analyze --prompt celo https://github.com/
 uv run python packages/cli/src/main.py batch-analyze \
   --input repos.txt \
   --output ./reports \
-  --model gemini-2.5-flash-preview-04-17
+  --model gemini-2.5-flash
 ```
 
 ### **API Usage**
@@ -176,7 +176,7 @@ analysis = analyze_single_repository(
     repo_name=repo_name,
     code_digest=digest,
     prompt_path="config/prompts/default.txt",
-    model_name="gemini-2.5-flash-preview-04-17"
+    model_name="gemini-2.5-flash"
 )
 
 print(analysis)
@@ -201,10 +201,10 @@ print(analysis)
 
 ### **Model Configuration**
 
-| Model                            | Best For         | Speed   | Quality    |
-| -------------------------------- | ---------------- | ------- | ---------- |
-| `gemini-2.5-flash-preview-04-17` | General analysis | ⚡ Fast | ⭐⭐⭐     |
-| `gemini-2.5-pro-preview-03-25`   | Deep analysis    | 🐌 Slow | ⭐⭐⭐⭐⭐ |
+| Model                          | Best For         | Speed   | Quality    |
+| ------------------------------ | ---------------- | ------- | ---------- |
+| `gemini-2.5-flash`             | General analysis | ⚡ Fast | ⭐⭐⭐     |
+| `gemini-2.5-pro-preview-03-25` | Deep analysis    | 🐌 Slow | ⭐⭐⭐⭐⭐ |
 
 ## 🧪 **Testing**
 

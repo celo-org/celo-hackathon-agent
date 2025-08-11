@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     # LLM settings
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
-    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.5-flash-preview-04-17")
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.5-flash")
     TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.2"))
 
     # GitHub settings

@@ -63,16 +63,30 @@ async def analyze_repository_async(task_id: str, github_url: str, options: dict)
             logger.debug(f"[WORKER] Updated task {task_id} to in_progress, progress: 10%")
 
             # Step 1: Fetch repository content
-            repo_name, repo_data = fetch_single_repository(
-                github_url, include_metrics=True, github_token=settings.GITHUB_TOKEN
-            )
+            # Run the sync fetcher in a thread pool to avoid async event loop conflicts
+            import concurrent.futures
 
-            if not repo_data or not repo_data["content"]:
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = loop.run_in_executor(
+                    executor,
+                    fetch_single_repository,
+                    github_url,
+                    True,  # include_metrics
+                    settings.GITHUB_TOKEN,
+                )
+                repo_name, repo_data = await future
+
+            logger.debug(f"[WORKER] Fetched repository data for {repo_name}")
+
+            if not repo_data or not repo_data.get("content"):
+                logger.error(f"[WORKER] Repository data is empty or missing content: {repo_data}")
                 raise Exception(f"Failed to fetch repository: {github_url}")
 
             # Extract repo name if not returned by fetcher
             if not repo_name:
                 repo_name = extract_repo_name_from_url(github_url)
+                logger.debug(f"[WORKER] Extracted repo name from URL: {repo_name}")
 
             # Update progress
             task.progress = 40
@@ -83,6 +97,14 @@ async def analyze_repository_async(task_id: str, github_url: str, options: dict)
             code_digest = repo_data["content"]
             metrics = repo_data.get("metrics", {})
 
+            logger.debug(f"[WORKER] Code digest length: {len(code_digest) if code_digest else 0}")
+            logger.debug(f"[WORKER] Metrics keys: {list(metrics.keys()) if metrics else []}")
+
+            if not code_digest or "Error fetching repository" in code_digest:
+                raise Exception(
+                    f"Failed to fetch repository content: {code_digest[:200] if code_digest else 'No content'}"
+                )
+
             # Validate API key before proceeding
             if not settings.GOOGLE_API_KEY or settings.GOOGLE_API_KEY == "your_gemini_api_key_here":
                 raise Exception(
@@ -91,14 +113,25 @@ async def analyze_repository_async(task_id: str, github_url: str, options: dict)
 
             # Get analysis options
             model = options.get("model", settings.DEFAULT_MODEL)
-            temperature = float(options.get("temperature", settings.TEMPERATURE))
+
+            # Safe temperature conversion with fallback
+            temp_value = options.get("temperature", settings.TEMPERATURE)
+            if temp_value is None or temp_value == "":
+                temperature = 0.2  # Default fallback
+            else:
+                try:
+                    temperature = float(temp_value)
+                except (ValueError, TypeError):
+                    temperature = 0.2  # Default fallback if conversion fails
+
+            logger.debug(f"[WORKER] Using temperature: {temperature}")
 
             # Override model based on analysis_type if present
             analysis_type = options.get("analysis_type", "fast")
             if analysis_type == "fast":
-                model = "gemini-2.5-flash-preview-04-17"  # Fast model
+                model = "gemini-2.5-flash"  # Fast model
             elif analysis_type == "deep":
-                model = "gemini-2.5-pro-preview-03-25"  # Deep model
+                model = "gemini-2.5-flash"  # Deep model
 
             # Update the task's analysis_type field
             task.analysis_type = analysis_type
@@ -122,15 +155,20 @@ async def analyze_repository_async(task_id: str, github_url: str, options: dict)
             logger.debug(f"Starting LLM analysis for {repo_name} using model {model}")
 
             try:
-                analysis = analyze_single_repository(
-                    repo_name,
-                    code_digest,
-                    prompt_path,
-                    model_name=model,
-                    temperature=temperature,
-                    output_json=False,
-                    metrics_data=metrics,
-                )
+                # Run the LLM analysis in a thread pool to avoid potential async conflicts
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = loop.run_in_executor(
+                        executor,
+                        analyze_single_repository,
+                        repo_name,
+                        code_digest,
+                        prompt_path,
+                        model,  # model_name
+                        temperature,
+                        False,  # output_json
+                        metrics,  # metrics_data
+                    )
+                    analysis = await future
                 logger.debug(f"LLM analysis completed for {repo_name}")
             except Exception as llm_error:
                 logger.error(f"LLM analysis failed for {repo_name}: {str(llm_error)}")

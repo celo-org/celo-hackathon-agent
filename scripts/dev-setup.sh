@@ -60,7 +60,7 @@ DEBUG=True
 LOG_LEVEL=INFO
 
 # LLM Settings
-DEFAULT_MODEL=gemini-2.5-flash-preview-04-17
+DEFAULT_MODEL=gemini-2.5-flash
 TEMPERATURE=0.2
 EOF
     echo "✅ Created .env file. Please edit it and add your API keys!"

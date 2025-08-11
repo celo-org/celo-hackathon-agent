@@ -56,17 +56,56 @@ def main():
 
     # Get Redis connection
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    redis_conn = Redis.from_url(redis_url)
+    logger.debug(f"Connecting to Redis at: {redis_url}")
+
+    try:
+        redis_conn = Redis.from_url(redis_url)
+        redis_conn.ping()  # Test connection
+        logger.debug("Redis connection successful")
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis: {e}")
+        return
 
     # Parse queue names
     queue_names = [q.strip() for q in args.listen.split(",")]
     logger.debug(f"Starting worker listening on queues: {', '.join(queue_names)}")
 
     # Start worker
-    queues = [Queue(name=name, connection=redis_conn) for name in queue_names]
-    worker = Worker(queues, connection=redis_conn)
+    try:
+        queues = [Queue(name=name, connection=redis_conn) for name in queue_names]
+        logger.debug(f"Created {len(queues)} queues")
 
-    worker.work(burst=args.burst)
+        worker = Worker(queues, connection=redis_conn)
+        logger.debug(f"Created worker: {worker}")
+
+        logger.debug(f"Starting worker with burst={args.burst}")
+
+        # Add a periodic callback to verify the worker is alive
+        import threading
+        import time
+
+        def heartbeat():
+            count = 0
+            while True:
+                time.sleep(30)
+                count += 1
+                logger.debug(f"[WORKER HEARTBEAT #{count}] Worker is alive and running")
+
+        # Start heartbeat in background thread
+        if not args.burst:
+            heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+            heartbeat_thread.start()
+            logger.debug("Started worker heartbeat thread")
+
+        worker.work(burst=args.burst)
+        logger.debug("Worker.work() returned - this should only happen in burst mode or on exit")
+
+    except Exception as e:
+        logger.error(f"Error in worker execution: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
 
 
 if __name__ == "__main__":

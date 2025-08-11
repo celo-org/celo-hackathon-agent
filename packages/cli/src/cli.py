@@ -48,7 +48,7 @@ def analyze(
         help="Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     ),
     model: str = typer.Option(
-        "gemini-2.5-flash-preview-04-17",
+        "gemini-2.5-flash",
         "--model",
         "-m",
         help="Gemini model to use for analysis",
@@ -90,9 +90,9 @@ def analyze(
 
     # Override model based on analysis type
     if analysis_type == "fast":
-        model = "gemini-2.5-flash-preview-04-17"
+        model = "gemini-2.5-flash"
     elif analysis_type == "deep":
-        model = "gemini-2.5-pro-preview-03-25"
+        model = "gemini-2.5-flash"
     else:
         rich_print(
             f"[bold yellow]Warning:[/bold yellow] Unknown analysis type '{analysis_type}', using specified model."

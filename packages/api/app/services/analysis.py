@@ -66,14 +66,60 @@ class AnalysisService:
             analysis_type=analysis_type,
         )
 
-        # Add to database
-        self.db.add(task)
-        await self.db.commit()
-        await self.db.refresh(task)
+        logger.debug(f"[ANALYSIS_SERVICE] Created task object for user {user_id}")
+
+        try:
+            # Add to database
+            self.db.add(task)
+            logger.debug("[ANALYSIS_SERVICE] Added task to database session")
+
+            # Ensure the task is flushed before commit
+            await self.db.flush()
+            logger.debug("[ANALYSIS_SERVICE] Flushed task to database")
+
+            await self.db.commit()
+            logger.debug("[ANALYSIS_SERVICE] Committed task to database")
+
+            await self.db.refresh(task)
+            task_id = str(task.id)
+            logger.debug(f"[ANALYSIS_SERVICE] Task committed with ID: {task_id}")
+
+            # Verify task exists in database immediately after commit using a NEW session
+            from sqlalchemy.future import select
+
+            from app.db.session import async_session_factory
+
+            async with async_session_factory() as verify_db:
+                verify_query = select(AnalysisTask).where(AnalysisTask.id == task.id)
+                verify_result = await verify_db.execute(verify_query)
+                verify_task = verify_result.scalar_one_or_none()
+
+                if verify_task:
+                    logger.debug(
+                        f"[ANALYSIS_SERVICE] Verified task {task_id} exists in database (new session)"
+                    )
+                else:
+                    logger.error(
+                        f"[ANALYSIS_SERVICE] Task {task_id} NOT found in database after commit! (new session)"
+                    )
+                    # Try to see all tasks
+                    all_tasks_query = select(AnalysisTask)
+                    all_tasks_result = await verify_db.execute(all_tasks_query)
+                    all_tasks = all_tasks_result.scalars().all()
+                    logger.error(f"[ANALYSIS_SERVICE] Total tasks in database: {len(all_tasks)}")
+
+                    # This is a critical error - don't enqueue if task doesn't exist
+                    raise Exception(f"Task {task_id} was not persisted to database after commit")
+
+        except Exception as commit_error:
+            logger.error(f"[ANALYSIS_SERVICE] Error during task commit: {commit_error}")
+            await self.db.rollback()
+            raise
 
         # Enqueue the task for background processing
-        task_id = str(task.id)
+        logger.debug(f"[ANALYSIS_SERVICE] Enqueueing task {task_id} for background processing")
         await self.queue_service.enqueue_analysis(task_id, github_url, options)
+        logger.debug(f"[ANALYSIS_SERVICE] Task {task_id} enqueued successfully")
 
         return task
 

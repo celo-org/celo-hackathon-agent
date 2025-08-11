@@ -33,7 +33,12 @@ def parse_input_file(file_path: str) -> List[str]:
     try:
         # Load the file based on extension
         if file_ext == ".csv":
-            df = pd.read_csv(file_path)
+            # Handle single-column CSV files that may contain comma-separated URLs
+            # Read as text first to avoid CSV parsing issues with commas in URLs
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = [line.strip() for line in f.readlines() if line.strip()]
+            # Create DataFrame from the lines
+            df = pd.DataFrame(lines, columns=['github'])
         elif file_ext in [".xlsx", ".xls"]:
             df = pd.read_excel(file_path)
         else:

@@ -25,7 +25,7 @@ engine = create_async_engine(
 async_session_factory = async_sessionmaker(
     engine,
     expire_on_commit=False,
-    autoflush=False,
+    autoflush=True,  # Enable autoflush to ensure changes are flushed to DB
 )
 
 # Create declarative base for SQLAlchemy models

@@ -12,6 +12,14 @@ license = "MIT"
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]
+dependencies = [
+    "dotenv>=0.9.9",
+    "gitingest>=0.1.5",
+    "langchain>=0.3.27",
+    "langchain-google-genai>=2.1.8",
+    "pandas>=2.3.1",
+    "pygithub>=2.6.1",
+]
 
 # Prevent setuptools from trying to build packages in this workspace root
 [tool.setuptools]
