@@ -81,7 +81,7 @@ jobs:
         run: ./scripts/test.sh --package core --coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: packages/core/coverage.xml
           flags: core
@@ -112,7 +112,7 @@ jobs:
         run: ./scripts/test.sh --package cli --coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: packages/cli/coverage.xml
           flags: cli
@@ -183,7 +183,7 @@ jobs:
         run: ./scripts/test.sh --package api --coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: packages/api/coverage.xml
           flags: api
@@ -213,7 +213,7 @@ jobs:
         run: ./scripts/test.sh --package frontend --coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: packages/frontend/coverage/lcov.info
           flags: frontend
